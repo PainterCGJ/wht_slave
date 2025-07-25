@@ -1,0 +1,21 @@
+{
+    "code-runner.saveFileBeforeRun": true,
+    "cmake.generator": "Ninja", //Unix Makefiles
+    "cmake.saveBeforeBuild": true,
+    "cmake.buildBeforeRun": true,
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "clangd.arguments": [
+        "--clang-tidy",
+        "--compile-commands-dir=./build/Debug",
+        "--log=verbose",
+        "--pretty",
+        "--ranking-model=heuristics",
+        "--query-driver=${env:ARM_CXX_PATH}"
+    ],
+    "todo-tree.tree.showBadges": false,
+    "files.associations": {
+        "main.h": "c",
+        "spi.h": "c",
+        "cmsis_os.h": "c"
+    },
+}
