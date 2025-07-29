@@ -1,0 +1,35 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "cwd": "${workspaceRoot}",
+            "executable": "${workspaceRoot}/build/debug/wht_slave.elf",
+            "name": "Cortex-Debug",
+            "request": "launch",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            "configFiles": [
+                "interface/cmsis-dap.cfg",
+                "target/gd32f4xx.cfg"
+            ],
+            "svdFile": "${workspaceRoot}/Scripts/GD32F4xx.svd",
+            "searchDir": [
+                "C:/Users/ylong/Documents/env/GD32EmbeddedBuilder/OpenOCD/xpack-openocd-0.11.0-3/scripts/"
+            ],
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "none",
+            "rttConfig": {
+                "enabled": true,
+                "polling_interval": 1,
+                "address": "auto",
+                "decoders": [
+                    {
+                        "label": "",
+                        "port": 0,
+                        "type": "console"
+                    }
+                ]
+            }
+        }
+    ]
+}
