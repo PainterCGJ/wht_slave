@@ -35,6 +35,8 @@ add_executable(${CMAKE_PROJECT_NAME})
 add_subdirectory(cmake/stm32cubemx)
 add_subdirectory(User)
 add_subdirectory(easylogger)
+add_subdirectory(FreeRTOScpp)
+add_subdirectory(protocol)
 
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
@@ -64,6 +66,8 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
     dw1000
     easylogger
+    FreeRTOScpp
+    WhtsProtocol
 
     # Add user defined libraries
 )
