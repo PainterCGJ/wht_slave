@@ -68,7 +68,6 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     easylogger
     FreeRTOScpp
     WhtsProtocol
-
     # Add user defined libraries
 )
 

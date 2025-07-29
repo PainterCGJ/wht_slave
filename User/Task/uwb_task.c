@@ -78,8 +78,8 @@ static void uwb_comm_task(void *argument) {
     dwt_configure(&config);
     elog_i(TAG, "dwt_configure success");
 
-    uint32_t device_id = dwt_readdevid();
-    elog_i(TAG, "device_id: %08X", device_id);
+    // uint32_t device_id = dwt_readdevid();
+    // elog_i(TAG, "device_id: %08X", device_id);
 
     // 启动接收模式
     dwt_rxenable(DWT_START_RX_IMMEDIATE);

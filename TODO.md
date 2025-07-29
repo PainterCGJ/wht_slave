@@ -1,5 +1,9 @@
 - [x] 新增elog库
-- [ ] 适配CPP
-- [ ] 优化uwb为通讯公共任务
-- [ ] 移植hptimer库
+- [x] 适配CPP
+- [x] 优化uwb为通讯公共任务
+- [x] 移植hptimer库
 - [x] 修复，发送时信道内需要有其他发送源的问题
+- [x] 移植wht protocol
+- [ ] 移植导通采集器ContinuityCollector
+- [ ] 移植uid
+- [ ] 移植input_adapter
