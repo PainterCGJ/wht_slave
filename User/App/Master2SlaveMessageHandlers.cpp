@@ -92,6 +92,11 @@ std::unique_ptr<Message> ConductionConfigHandler::processMessage(
     if (device->continuityCollector->configure(device->currentConfig)) {
         device->isConfigured = true;
         device->deviceState = SlaveDeviceState::READY;
+        
+        // 重置数据发送相关状态
+        device->hasDataToSend = false;
+        device->isFirstCollection = true;
+        device->lastCollectionData.clear();
         elog_v("ConductionConfigHandler",
                "ContinuityCollector configured successfully - Pins: %d, Start: "
                "%d, Total: %d, Interval: %ums",
@@ -296,6 +301,12 @@ std::unique_ptr<Message> SlaveControlHandler::processMessage(
             device->continuityCollector->stopCollection();
             device->isCollecting = false;
             device->deviceState = SlaveDeviceState::READY;
+            
+            // 重置数据发送相关状态
+            device->hasDataToSend = false;
+            device->isFirstCollection = true;
+            device->lastCollectionData.clear();
+            
             elog_i("SlaveControlHandler",
                    "Data collection stopped successfully");
         }

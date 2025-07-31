@@ -34,6 +34,11 @@ class SlaveDevice {
     uint64_t scheduledStartTime;    // 计划启动时间戳(us)
     bool isScheduledToStart;        // 是否已计划启动
 
+    // 数据发送相关
+    std::vector<uint8_t> lastCollectionData;    // 上一次采集的数据，用于延迟发送
+    bool hasDataToSend;                         // 是否有数据待发送
+    bool isFirstCollection;                     // 是否是第一次采集
+
     // 设备状态，供外部读取和内部更新
     WhtsProtocol::DeviceStatus deviceStatus;
 

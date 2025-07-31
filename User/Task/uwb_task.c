@@ -49,7 +49,7 @@ static dwt_config_t config = {
     9,                  // TX前导码索引：通道5/64MHz下推荐用9
     9,                  // RX前导码索引：与TX一致
     0,                  // 使用标准SFD：标准SFD解码鲁棒性更好
-    DWT_BR_110K,        // 数据速率：110Kbps最稳定，误码率最低
+    DWT_BR_850K,        // 数据速率：110Kbps最稳定，误码率最低
     DWT_PHRMODE_STD,    // 标准PHY头
     (1025 + 64 - 32)    // SFD超时时间：可按 PLEN + margin 设置
 };

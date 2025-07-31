@@ -28,6 +28,8 @@ SlaveDevice::SlaveDevice()
       isCollecting(false),          // 初始未在采集
       scheduledStartTime(0),        // 初始计划启动时间为0
       isScheduledToStart(false),    // 初始未计划启动
+      hasDataToSend(false),         // 初始无数据待发送
+      isFirstCollection(true),      // 初始为第一次采集
       deviceStatus({}) {            // 初始化设备状态
 
     // Initialize continuity collector with virtual GPIO
@@ -139,6 +141,22 @@ uint32_t SlaveDevice::getSyncTimestampMs() {
 void SlaveDevice::resetDevice() {
     // 保留配置，但重置状态
     deviceState = SlaveDeviceState::READY;
+    
+    // 停止采集相关状态
+    if (isCollecting && continuityCollector) {
+        continuityCollector->stopCollection();
+        isCollecting = false;
+    }
+    
+    // 重置数据发送相关状态
+    hasDataToSend = false;
+    isFirstCollection = true;
+    lastCollectionData.clear();
+    
+    // 重置启动调度相关状态
+    isScheduledToStart = false;
+    scheduledStartTime = 0;
+    
     elog_v("SlaveDevice",
            "Device reset to READY state, configuration preserved");
 }
@@ -411,6 +429,7 @@ void SlaveDevice::DataCollectionTask::processDataCollection() {
                 parent.deviceState = SlaveDeviceState::RUNNING;
                 parent.isScheduledToStart = false;
                 parent.scheduledStartTime = 0;
+                parent.isFirstCollection = true;  // 重置为第一次采集
                 elog_i(TAG,
                        "Data collection started successfully from scheduled "
                        "start");
@@ -428,15 +447,36 @@ void SlaveDevice::DataCollectionTask::processDataCollection() {
         return;
     }
 
+    // 获取当前周期和配置信息
+    uint8_t currentCycle = parent.continuityCollector->getCurrentCycle();
+    uint8_t startDetectionNum = parent.currentConfig.startDetectionNum;
+    
+    // 检查是否到达自己的第一个时隙且有数据待发送
+    if (currentCycle == startDetectionNum && parent.hasDataToSend && !parent.isFirstCollection) {
+        elog_v(TAG, "Reached own first time slot (cycle %d), sending previous collection data to backend", currentCycle);
+        sendDataToBackend();
+        parent.hasDataToSend = false;
+    }
+
     // 处理采集状态机
     parent.continuityCollector->processCollection();
 
     // 检查采集是否完成
     if (parent.continuityCollector->isCollectionComplete()) {
-        elog_v(TAG, "Data collection cycle completed, sending data to backend");
+        elog_v(TAG, "Data collection cycle completed");
 
-        // 自动发送数据到后端
-        sendDataToBackend();
+        // 如果不是第一次采集，保存数据准备在下次自己的时隙发送
+        if (!parent.isFirstCollection) {
+            // 获取采集到的数据并保存
+            auto dataVector = parent.continuityCollector->getDataVector();
+            parent.lastCollectionData = dataVector;
+            parent.hasDataToSend = true;
+            elog_v(TAG, "Saved %d bytes of data for next transmission", dataVector.size());
+        } else {
+            // 第一次采集完成，标记为非第一次
+            parent.isFirstCollection = false;
+            elog_v(TAG, "First collection completed, no data to send yet");
+        }
 
         // 清空数据矩阵并重新开始采集以实现持续采集
         parent.continuityCollector->clearData();
@@ -453,8 +493,14 @@ void SlaveDevice::DataCollectionTask::processDataCollection() {
 }
 
 void SlaveDevice::DataCollectionTask::sendDataToBackend() {
-    if (!parent.isConfigured || !parent.continuityCollector) {
-        elog_w(TAG, "Device not configured or collector not available");
+    if (!parent.isConfigured) {
+        elog_w(TAG, "Device not configured");
+        return;
+    }
+
+    // 检查是否有缓存的数据可发送
+    if (!parent.hasDataToSend || parent.lastCollectionData.empty()) {
+        elog_w(TAG, "No cached data available to send to backend");
         return;
     }
 
@@ -462,12 +508,12 @@ void SlaveDevice::DataCollectionTask::sendDataToBackend() {
     // 这里假设是导通检测模式，实际应该根据配置的模式来决定
     auto dataMsg = std::make_unique<Slave2Backend::ConductionDataMessage>();
 
-    // 获取采集到的数据
-    dataMsg->conductionData = parent.continuityCollector->getDataVector();
+    // 使用缓存的数据
+    dataMsg->conductionData = parent.lastCollectionData;
     dataMsg->conductionLength = dataMsg->conductionData.size();
 
     if (dataMsg->conductionLength > 0) {
-        elog_v(TAG, "Sending %d bytes of conduction data to backend",
+        elog_v(TAG, "Sending %d bytes of cached conduction data to backend",
                dataMsg->conductionLength);
 
         // 使用协议处理器打包消息为Slave2Backend格式
@@ -486,13 +532,15 @@ void SlaveDevice::DataCollectionTask::sendDataToBackend() {
         }
 
         if (success) {
-            elog_v(TAG, "Data successfully sent to backend (%d fragments)",
+            elog_v(TAG, "Cached data successfully sent to backend (%d fragments)",
                    packedData.size());
+            // 发送成功后清空缓存数据
+            parent.lastCollectionData.clear();
         } else {
-            elog_e(TAG, "Failed to send complete data to backend");
+            elog_e(TAG, "Failed to send complete cached data to backend");
         }
     } else {
-        elog_w(TAG, "No data available to send to backend");
+        elog_w(TAG, "No cached data available to send to backend");
     }
 }
 
