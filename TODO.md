@@ -10,4 +10,5 @@
 - [x] 移植accessoryTask
   - [x] 移植HalButton
   - [x] 移植InputAdapter
+- [ ] 移植CX310驱动
 - [ ] 修改elog实现日志时间函数注册

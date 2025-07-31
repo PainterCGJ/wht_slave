@@ -42,17 +42,16 @@ static uwb_rx_callback_t uwb_rx_callback = NULL;
 
 /* Default communication configuration. */
 static dwt_config_t config = {
-    5,               /* Channel number. */
-    DWT_PRF_64M,     /* Pulse repetition frequency. */
-    DWT_PLEN_128,    /* Preamble length. Used in TX only. */
-    DWT_PAC32,       /* Preamble acquisition chunk size. Used in RX only. */
-    9,               /* TX preamble code. Used in TX only. */
-    9,               /* RX preamble code. Used in RX only. */
-    1,               /* 0 to use standard SFD, 1 to use non-standard SFD. */
-    DWT_BR_6M8,      /* Data rate. */
-    DWT_PHRMODE_STD, /* PHY header mode. */
-    (1025 + 64 - 32) /* SFD timeout (preamble length + 1 + SFD length - PAC
-                        size). Used in RX only. */
+    5,                  // 通道号，推荐5或2，5抗干扰稍强
+    DWT_PRF_64M,        // 脉冲重复频率：64MHz 提高灵敏度（优于16M）
+    DWT_PLEN_1024,      // 前导码长度：越长越容易同步，稳定性更好（如1024）
+    DWT_PAC32,          // PAC大小：与PLEN匹配，PAC32适用于PLEN1024
+    9,                  // TX前导码索引：通道5/64MHz下推荐用9
+    9,                  // RX前导码索引：与TX一致
+    0,                  // 使用标准SFD：标准SFD解码鲁棒性更好
+    DWT_BR_110K,        // 数据速率：110Kbps最稳定，误码率最低
+    DWT_PHRMODE_STD,    // 标准PHY头
+    (1025 + 64 - 32)    // SFD超时时间：可按 PLEN + margin 设置
 };
 
 static uint8_t rx_buffer[FRAME_LEN_MAX];
@@ -131,7 +130,7 @@ static void uwb_comm_task(void *argument) {
         // 检查是否有接收数据
         status_reg = dwt_read32bitreg(SYS_STATUS_ID);
         if (status_reg & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_ERR)) {
-            elog_i(TAG, "status_reg: %08X", status_reg);
+            // elog_i(TAG, "status_reg: %08X", status_reg);
             if (status_reg & SYS_STATUS_RXFCG) {
                 // 成功接收到数据
                 frame_len =

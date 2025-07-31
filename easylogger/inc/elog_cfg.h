@@ -32,11 +32,11 @@
  /* enable log output. */
  #define ELOG_OUTPUT_ENABLE
  /* setting static output log level. range: from ELOG_LVL_ASSERT to ELOG_LVL_VERBOSE */
- #define ELOG_OUTPUT_LVL                          ELOG_LVL_VERBOSE
+ #define ELOG_OUTPUT_LVL                          ELOG_LVL_DEBUG
  /* enable assert check */
  #define ELOG_ASSERT_ENABLE
  /* buffer size for every line's log */
- #define ELOG_LINE_BUF_SIZE                       256
+#define ELOG_LINE_BUF_SIZE                       128
  /* output line number max length */
  #define ELOG_LINE_NUM_MAX_LEN                    10
  /* output filter's tag max length */
@@ -63,7 +63,7 @@
  /* the highest output level for async mode, other level will sync output */
  #define ELOG_ASYNC_OUTPUT_LVL                    ELOG_LVL_VERBOSE
  /* buffer size for asynchronous output mode */
- #define ELOG_ASYNC_OUTPUT_BUF_SIZE               (ELOG_LINE_BUF_SIZE * 3)
+ #define ELOG_ASYNC_OUTPUT_BUF_SIZE               (ELOG_LINE_BUF_SIZE * 100)
  /* each asynchronous output's log which must end with newline sign */
  #define ELOG_ASYNC_LINE_OUTPUT
  /* asynchronous output mode using POSIX pthread implementation */

@@ -201,8 +201,8 @@ void SlaveDevice::processFrame(Frame& frame) {
             elog_e("SlaveDevice", "Failed to parse Master2Slave packet");
         }
     } else {
-        elog_w("SlaveDevice", "Unsupported packet type for Slave: 0x%02X",
-               static_cast<int>(frame.packetId));
+        // elog_w("SlaveDevice", "Unsupported packet type for Slave: 0x%02X",
+        //        static_cast<int>(frame.packetId));
     }
 }
 
