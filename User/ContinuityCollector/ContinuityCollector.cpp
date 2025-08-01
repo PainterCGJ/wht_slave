@@ -55,7 +55,6 @@ GpioPin CollectorConfig::getGpioPin(uint8_t logicalPin) const {
 ContinuityCollector::ContinuityCollector()
     : status_(CollectionStatus::IDLE),
       currentCycle_(0),
-      lastProcessTime_(0),
       lastActivePin_(-1) {
     elog_v("ContinuityCollector", "Constructor: config_.num: %d", config_.num);
 }
@@ -70,16 +69,12 @@ bool ContinuityCollector::configure(const CollectorConfig &config) {
     //     return false;    // 不能在运行时重新配置
     // }
 
-    if (config.num == 0 || config.num > MAX_GPIO_PINS || config.interval == 0) {
+    if (config.num == 0 || config.num > MAX_GPIO_PINS) {
         return false;
     }
 
     if (config.totalDetectionNum == 0 ||
         config.totalDetectionNum > MAX_GPIO_PINS) {
-        return false;
-    }
-
-    if (config.startDetectionNum >= config.totalDetectionNum) {
         return false;
     }
 
@@ -118,7 +113,6 @@ bool ContinuityCollector::startCollection() {
     // 重置状态
     currentCycle_ = 0;
     status_ = CollectionStatus::RUNNING;
-    lastProcessTime_ = getSyncTimeUs();    // 使用同步时间
     lastActivePin_ = -1;                   // 重置上一个激活的引脚
 
     elog_v("ContinuityCollector", "startCollection completed, status: RUNNING");
@@ -137,37 +131,23 @@ void ContinuityCollector::stopCollection() {
     }
 }
 
-uint32_t ContinuityCollector::getCurrentTimeMs() {
-    return hal_hptimer_get_ms();
-}
+// uint32_t ContinuityCollector::getCurrentTimeMs() {
+//     return hal_hptimer_get_ms();
+// }
 
-uint64_t ContinuityCollector::getCurrentTimeUs() {
-    return hal_hptimer_get_us();
-}
+// uint64_t ContinuityCollector::getCurrentTimeUs() {
+//     return hal_hptimer_get_us();
+// }
 
-uint32_t ContinuityCollector::getSyncTimeMs() {
-    // 如果设置了同步时间回调，使用同步时间，否则使用本地时间
-    if (syncTimeCallback_) {
-        return syncTimeCallback_();
-    }
-    return getCurrentTimeMs();
-}
 
-uint64_t ContinuityCollector::getSyncTimeUs() {
-    // 如果设置了同步时间回调，使用同步时间，否则使用本地时间
-    if (syncTimeCallback_) {
-        return syncTimeCallback_();
-    }
-    return getCurrentTimeUs();
-}
 
 void ContinuityCollector::delayMs(uint32_t ms) {
     vTaskDelay(pdMS_TO_TICKS(ms));
 }
 
-// 状态机处理方法
-void ContinuityCollector::processCollection() {
-    // 只处理RUNNING状态
+// 处理时隙事件（由外部时隙管理器调用）
+void ContinuityCollector::processSlot(uint8_t slotNumber, uint8_t activePin, bool isActive) {
+    // 只在运行状态下处理
     if (status_ != CollectionStatus::RUNNING) {
         return;
     }
@@ -178,55 +158,47 @@ void ContinuityCollector::processCollection() {
         return;
     }
 
-    // 检查是否到了下一个采集周期的时间
-    uint64_t currentTime = getSyncTimeUs();    // 使用同步时间
-    uint64_t elapsedTime = currentTime - lastProcessTime_;
+    // 配置当前时隙的引脚状态
+    configurePinsForSlot(activePin, isActive);
 
-    if (elapsedTime >= config_.interval || currentCycle_ == 0) {
-        // 立即复位上一个激活的引脚，然后配置新的引脚
-        configurePinsForCycle(currentCycle_);
+    // 延迟1ms，确保电路稳定
+    delayMs(1);
 
-        // 延迟5ms，确保电路稳定并抵消时差
-        delayMs(1);
+    // 读取当前时隙的所有引脚状态
+    std::vector<ContinuityState> slotData;
+    slotData.reserve(config_.num);
 
-        // 读取当前周期的所有引脚状态
-        std::vector<ContinuityState> cycleData;
-        cycleData.reserve(config_.num);
-        // elog_d("ContinuityCollector", "Cycle %d: Reading %d pins after 5ms
-        // delay",
-        //        currentCycle_, config_.num);
+    for (uint8_t pin = 0; pin < config_.num; pin++) {
+        ContinuityState state = readPinContinuity(pin);
+        slotData.push_back(state);
+    }
 
-        for (uint8_t pin = 0; pin < config_.num; pin++) {
-            ContinuityState state = readPinContinuity(pin);
-            cycleData.push_back(state);
-            // elog_d("ContinuityCollector", "Cycle %d, Pin %d (physical %d):
-            // %s",
-            //        currentCycle_, pin, config_.getPhysicalPin(pin),
-            //        (state == ContinuityState::CONNECTED) ? "CONNECTED" :
-            //        "DISCONNECTED");
+    // 保存数据到矩阵
+    if (currentCycle_ < dataMatrix_.size()) {
+        dataMatrix_[currentCycle_] = std::move(slotData);
+    }
+
+    elog_v("ContinuityCollector", "Processed slot %d (cycle %d), active: %s, pin: %d", 
+           slotNumber, currentCycle_, isActive ? "true" : "false", activePin);
+
+    // 更新周期计数
+    currentCycle_++;
+
+    // 检查是否完成
+    if (currentCycle_ >= config_.totalDetectionNum) {
+        status_ = CollectionStatus::COMPLETED;
+        // 复位最后一个激活的引脚
+        if (lastActivePin_ >= 0 && lastActivePin_ < config_.num) {
+            GpioPin gpioPin = config_.getGpioPin(lastActivePin_);
+            halGpioInit(gpioPin, GPIO_MODE_INPUT, GPIO_PULLDOWN);
+            lastActivePin_ = -1;
         }
+        // elog_v("ContinuityCollector", "Data collection completed after %d slots", currentCycle_);
+    }
 
-        // 保存数据到矩阵
-        {
-            if (currentCycle_ < dataMatrix_.size()) {
-                dataMatrix_[currentCycle_] = std::move(cycleData);
-            }
-        }
-
-        // 更新时间和周期
-        lastProcessTime_ = currentTime;
-        currentCycle_++;
-
-        // 检查是否完成
-        if (currentCycle_ >= config_.totalDetectionNum) {
-            status_ = CollectionStatus::COMPLETED;
-            // 复位最后一个激活的引脚
-            if (lastActivePin_ >= 0) {
-                GpioPin gpioPin = config_.getGpioPin(lastActivePin_);
-                halGpioInit(gpioPin, GPIO_MODE_INPUT, GPIO_PULLDOWN);
-                lastActivePin_ = -1;
-            }
-        }
+    // 触发进度回调
+    if (progressCallback_) {
+        progressCallback_(currentCycle_, config_.totalDetectionNum);
     }
 }
 
@@ -327,9 +299,7 @@ void ContinuityCollector::setProgressCallback(ProgressCallback callback) {
     progressCallback_ = callback;
 }
 
-void ContinuityCollector::setSyncTimeCallback(SyncTimeCallback callback) {
-    syncTimeCallback_ = callback;
-}
+
 
 ContinuityCollector::Statistics ContinuityCollector::calculateStatistics()
     const {
@@ -411,43 +381,35 @@ ContinuityState ContinuityCollector::readPinContinuity(uint8_t logicalPin) {
                                       : ContinuityState::DISCONNECTED;
 }
 
-void ContinuityCollector::configurePinsForCycle(uint8_t currentCycle) {
+void ContinuityCollector::configurePinsForSlot(uint8_t activePin, bool isActive) {
     // 1. 立即复位上一个激活的引脚（如果有）
-    if (lastActivePin_ >= 0) {
+    if (lastActivePin_ >= 0 && lastActivePin_ < config_.num) {
         GpioPin gpioPin = config_.getGpioPin(lastActivePin_);
         halGpioInit(gpioPin, GPIO_MODE_INPUT, GPIO_PULLDOWN);
         elog_v("ContinuityCollector", "Reset previous active pin: logical=%d",
                lastActivePin_);
     }
 
-    // 2. 确定当前周期应该激活的引脚
-    int8_t currentActivePin = -1;
-    if (currentCycle >= config_.startDetectionNum &&
-        currentCycle < config_.startDetectionNum + config_.num) {
-        currentActivePin = currentCycle - config_.startDetectionNum;
-    }
-
-    // 3. 先配置激活引脚为输出高电平（如果有），再配置其他引脚为输入
-    if (currentActivePin >= 0) {
-        GpioPin activeGpioPin = config_.getGpioPin(currentActivePin);
+    // 2. 如果当前时隙是激活时隙，配置对应引脚为输出高电平
+    if (isActive && activePin < config_.num) {
+        GpioPin activeGpioPin = config_.getGpioPin(activePin);
         halGpioInit(activeGpioPin, GPIO_MODE_OUTPUT_PP, GPIO_NOPULL,
                     GPIO_PIN_SET);
         halGpioWrite(activeGpioPin, GPIO_PIN_SET);
 
-        elog_v("ContinuityCollector", "Cycle %d: Activated pin logical=%d",
-               currentCycle, currentActivePin);
+        elog_v("ContinuityCollector", "Activated pin logical=%d", activePin);
+        lastActivePin_ = activePin;
+    } else {
+        lastActivePin_ = -1;
     }
 
-    // 4. 配置其他引脚为输入下拉模式
+    // 3. 配置其他引脚为输入下拉模式
     for (uint8_t logicalPin = 0; logicalPin < config_.num; logicalPin++) {
-        if (logicalPin != currentActivePin) {    // 跳过已激活的引脚
+        if (!isActive || logicalPin != activePin) {    // 跳过当前激活的引脚
             GpioPin gpioPin = config_.getGpioPin(logicalPin);
             halGpioInit(gpioPin, GPIO_MODE_INPUT, GPIO_PULLDOWN);
         }
     }
-
-    // 5. 更新上一个激活的引脚记录
-    lastActivePin_ = currentActivePin;
 }
 
 // HAL库GPIO辅助函数实现

@@ -58,26 +58,17 @@ static constexpr uint8_t HARDWARE_PIN_MAP[64] = {
 
 // 导通数据采集配置
 struct CollectorConfig {
-    uint8_t num;                  // 导通检测数量 a (< 64)
-    uint8_t startDetectionNum;    // 开始检测数量 b
-    uint8_t totalDetectionNum;    // 总检测数量 k
-    uint32_t interval;            // 检测间隔 (毫秒)
-    bool autoStart;               // 是否自动开始采集
+    uint8_t num;                  // 导通检测数量 (本设备负责的引脚数量)
+    uint8_t totalDetectionNum;    // 总检测数量 (整个采集周期的时隙数量)
 
-    CollectorConfig(uint8_t n = 2, uint8_t startDetNum = 0,
-                    uint8_t totalDetNum = 4, uint32_t i = 20,
-                    bool autoS = false)
+    CollectorConfig(uint8_t n = 2, uint8_t totalDetNum = 4)
         : num(n),
-          startDetectionNum(startDetNum),
-          totalDetectionNum(totalDetNum),
-          interval(i),
-          autoStart(autoS) {
+          totalDetectionNum(totalDetNum) {
         if (num > 64) num = 64;
         if (totalDetectionNum == 0 || totalDetectionNum > 64)
             totalDetectionNum = 64;
-        if (startDetectionNum >= totalDetectionNum) startDetectionNum = 0;
 
-        elog_v("CollectorConfig", "Constructor: n=%d, final num=%d", n, num);
+        elog_v("CollectorConfig", "Constructor: num=%d, totalDetectionNum=%d", num, totalDetectionNum);
     }
 
     // 获取逻辑引脚对应的物理引脚
@@ -128,9 +119,7 @@ class ContinuityCollector {
 
     CollectionStatus status_;              // 采集状态
     uint8_t currentCycle_;                 // 当前周期
-    uint64_t lastProcessTime_;             // 上次处理时间（毫秒）
     ProgressCallback progressCallback_;    // 进度回调
-    SyncTimeCallback syncTimeCallback_;    // 同步时间回调
 
     // 引脚状态跟踪
     int8_t lastActivePin_;    // 上一个激活的引脚（-1表示无）
@@ -140,12 +129,8 @@ class ContinuityCollector {
     void deinitializeGpioPins();    // 反初始化GPIO引脚
     ContinuityState readPinContinuity(
         uint8_t logicalPin);    // 读取单个引脚导通状态
-    void configurePinsForCycle(
-        uint8_t currentCycle);      // 为当前周期配置引脚模式
-    uint32_t getCurrentTimeMs();    // 获取当前时间（毫秒）
-    uint64_t getCurrentTimeUs();    // 获取当前时间（微秒）
-    uint32_t getSyncTimeMs();       // 获取同步时间（毫秒）
-    uint64_t getSyncTimeUs();       // 获取同步时间（微秒）
+    void configurePinsForSlot(
+        uint8_t activePin, bool isActive);  // 为指定时隙配置引脚模式
     void delayMs(uint32_t ms);      // 延迟函数
 
     // HAL库GPIO辅助函数
@@ -172,8 +157,8 @@ class ContinuityCollector {
     // 停止采集
     void stopCollection();
 
-    // 处理采集状态（状态机）
-    void processCollection();
+    // 处理时隙事件（由外部时隙管理器调用）
+    void processSlot(uint8_t slotNumber, uint8_t activePin, bool isActive);
 
     // 获取采集状态
     CollectionStatus getStatus() const;
@@ -198,9 +183,6 @@ class ContinuityCollector {
 
     // 设置进度回调
     void setProgressCallback(ProgressCallback callback);
-
-    // 设置同步时间回调
-    void setSyncTimeCallback(SyncTimeCallback callback);
 
     // 获取采集配置
     const CollectorConfig& getConfig() const { return config_; }

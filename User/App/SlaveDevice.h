@@ -5,6 +5,7 @@
 #include "ContinuityCollector.h"
 #include "LockController.h"
 #include "SlaveDeviceState.h"
+#include "SlotManager.h"
 #include "TaskCPP.h"
 #include "WhtsProtocol.h"
 #include "button.h"
@@ -45,6 +46,7 @@ class SlaveDevice {
     WhtsProtocol::ProtocolProcessor processor;
 
     std::unique_ptr<ContinuityCollector> continuityCollector;
+    std::unique_ptr<SlotManager> slotManager;
 
     static constexpr const char TAG[] = "SlaveDevice";
 
@@ -118,6 +120,12 @@ class SlaveDevice {
      */
     bool getJoinStatus() const { return isJoined; }
 
+    /**
+     * 时隙切换回调处理函数
+     * @param slotInfo 时隙信息
+     */
+    void onSlotChanged(const SlotInfo& slotInfo);
+
    private:
     /**
      * 公告任务类 - 上电时发送AnnounceMsg
@@ -162,11 +170,13 @@ class SlaveDevice {
        public:
         DataCollectionTask(SlaveDevice& parent);
 
+       public:
+        void sendDataToBackend();  // 公开发送数据方法供onSlotChanged调用
+        
        private:
         SlaveDevice& parent;
         void task() override;
         void processDataCollection();
-        void sendDataToBackend();
         static constexpr const char TAG[] = "DataCollectionTask";
         static constexpr uint32_t PROCESS_INTERVAL_MS = 10;    // 采集处理间隔
     };

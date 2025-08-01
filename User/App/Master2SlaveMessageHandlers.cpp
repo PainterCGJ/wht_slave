@@ -80,16 +80,27 @@ std::unique_ptr<Message> ConductionConfigHandler::processMessage(
         static_cast<int>(configMsg->timeSlot),
         static_cast<int>(configMsg->interval));
 
-    // 创建采集器配置
+    // 创建采集器配置（新版本只需要引脚数量和总时隙数）
     device->currentConfig = CollectorConfig(
-        static_cast<uint8_t>(configMsg->conductionNum),         // 导通检测数量
-        static_cast<uint8_t>(configMsg->startConductionNum),    // 开始检测数量
-        static_cast<uint8_t>(configMsg->totalConductionNum),    // 总检测数量
-        static_cast<uint32_t>(configMsg->interval)              // 检测间隔(ms)
+        static_cast<uint8_t>(configMsg->conductionNum),         // 导通检测数量（本设备负责的引脚数）
+        static_cast<uint8_t>(configMsg->totalConductionNum)     // 总检测数量（总时隙数）
     );
 
-    // 配置采集器
-    if (device->continuityCollector->configure(device->currentConfig)) {
+    // 配置采集器和时隙管理器
+    bool collectorConfigured = device->continuityCollector->configure(device->currentConfig);
+    bool slotManagerConfigured = false;
+    
+    if (collectorConfigured && device->slotManager) {
+        // 配置时隙管理器
+        slotManagerConfigured = device->slotManager->configure(
+            static_cast<uint8_t>(configMsg->startConductionNum),    // 起始时隙
+            static_cast<uint8_t>(configMsg->conductionNum),         // 设备时隙数量
+            static_cast<uint8_t>(configMsg->totalConductionNum),    // 总时隙数
+            static_cast<uint32_t>(configMsg->interval)              // 时隙间隔(ms)
+        );
+    }
+
+    if (collectorConfigured && slotManagerConfigured) {
         device->isConfigured = true;
         device->deviceState = SlaveDeviceState::READY;
         
@@ -98,12 +109,12 @@ std::unique_ptr<Message> ConductionConfigHandler::processMessage(
         device->isFirstCollection = true;
         device->lastCollectionData.clear();
         elog_v("ConductionConfigHandler",
-               "ContinuityCollector configured successfully - Pins: %d, Start: "
-               "%d, Total: %d, Interval: %ums",
+               "ContinuityCollector and SlotManager configured successfully - Pins: %d, "
+               "Start: %d, Total: %d, Interval: %ums",
                static_cast<int>(device->currentConfig.num),
-               static_cast<int>(device->currentConfig.startDetectionNum),
+               static_cast<int>(configMsg->startConductionNum),
                static_cast<int>(device->currentConfig.totalDetectionNum),
-               device->currentConfig.interval);
+               static_cast<int>(configMsg->interval));
         elog_v("ConductionConfigHandler",
                "Configuration saved for future use. Send Sync message to start "
                "collection.");
@@ -111,7 +122,7 @@ std::unique_ptr<Message> ConductionConfigHandler::processMessage(
         device->isConfigured = false;
         device->deviceState = SlaveDeviceState::DEV_ERR;
         elog_e("ConductionConfigHandler",
-               "Failed to configure ContinuityCollector");
+               "Failed to configure ContinuityCollector or SlotManager");
     }
 
     auto response =
@@ -298,7 +309,12 @@ std::unique_ptr<Message> SlaveControlHandler::processMessage(
     } else {
         // 停止采集
         if (device->isCollecting) {
-            device->continuityCollector->stopCollection();
+            if (device->continuityCollector) {
+                device->continuityCollector->stopCollection();
+            }
+            if (device->slotManager) {
+                device->slotManager->stop();
+            }
             device->isCollecting = false;
             device->deviceState = SlaveDeviceState::READY;
             
@@ -308,7 +324,7 @@ std::unique_ptr<Message> SlaveControlHandler::processMessage(
             device->lastCollectionData.clear();
             
             elog_i("SlaveControlHandler",
-                   "Data collection stopped successfully");
+                   "Data collection and slot management stopped successfully");
         }
 
         // 取消计划的启动
