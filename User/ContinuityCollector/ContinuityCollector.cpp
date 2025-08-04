@@ -78,12 +78,21 @@ bool ContinuityCollector::configure(const CollectorConfig &config) {
 
     config_ = config;
 
-    // 重新初始化数据矩阵 - 基于总检测数量
+    // 优化内存分配策略 - 预分配所有内存
     {
         dataMatrix_.clear();
-        dataMatrix_.resize(config_.totalDetectionNum,
-                           std::vector<ContinuityState>(
-                               config_.num, ContinuityState::DISCONNECTED));
+        dataMatrix_.reserve(config_.totalDetectionNum);
+        
+        // 预分配所有行的内存，避免动态增长
+        for (uint16_t i = 0; i < config_.totalDetectionNum; ++i) {
+            dataMatrix_.emplace_back(config_.num, ContinuityState::DISCONNECTED);
+        }
+        
+        // 监控内存使用情况
+        size_t totalElements = config_.totalDetectionNum * config_.num;
+        size_t totalBytes = totalElements * sizeof(ContinuityState);
+        elog_i(TAG, "Memory allocated: %d rows x %d cols = %d elements (%d bytes)", 
+               config_.totalDetectionNum, config_.num, totalElements, totalBytes);
     }
 
     currentCycle_ = 0;
@@ -160,22 +169,27 @@ void ContinuityCollector::processSlot(uint16_t slotNumber, uint8_t activePin,
 
     delayMs(3);
 
-    // 读取当前时隙的所有引脚状态
-    std::vector<ContinuityState> slotData;
+    // 使用静态缓冲区避免频繁的内存分配
+    static std::vector<ContinuityState> slotData;
+    slotData.clear();
     slotData.reserve(config_.num);
 
+    // 读取当前时隙的所有引脚状态
     for (uint8_t pin = 0; pin < config_.num; pin++) {
         ContinuityState state = readPinContinuity(pin);
         slotData.push_back(state);
     }
 
-    // 保存数据到矩阵
+    // 保存数据到矩阵 - 直接复制，避免移动操作
     if (currentCycle_ < dataMatrix_.size()) {
-        dataMatrix_[currentCycle_] = std::move(slotData);
+        dataMatrix_[currentCycle_] = slotData;
     }
 
-    elog_d(TAG, "Processed slot %d (cycle %d), active: %s, pin: %d", slotNumber,
-           currentCycle_, isActive ? "true" : "false", activePin);
+    // 减少日志输出频率，只在每10个周期输出一次
+    if (currentCycle_ % 10 == 0) {
+        elog_d(TAG, "Processed slot %d (cycle %d), active: %s, pin: %d", slotNumber,
+               currentCycle_, isActive ? "true" : "false", activePin);
+    }
 
     // 更新周期计数
     currentCycle_++;
