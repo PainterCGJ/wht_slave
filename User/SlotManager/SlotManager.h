@@ -15,8 +15,8 @@ enum class SlotType : uint8_t {
  * 时隙信息结构体
  */
 struct SlotInfo {
-    uint8_t currentSlot;        // 当前时隙编号
-    uint8_t totalSlots;         // 总时隙数
+    uint16_t currentSlot;        // 当前时隙编号
+    uint16_t totalSlots;         // 总时隙数
     SlotType slotType;          // 当前时隙类型
     uint8_t activePin;          // 如果是激活时隙，对应的引脚编号（逻辑引脚）
     uint32_t slotIntervalMs;    // 时隙间隔（毫秒）
@@ -57,8 +57,8 @@ public:
      * @param slotIntervalMs 时隙间隔（毫秒）
      * @return 配置是否成功
      */
-    bool configure(uint8_t startSlot, uint8_t deviceSlotCount, 
-                   uint8_t totalSlotCount, uint32_t slotIntervalMs);
+    bool configure(uint16_t startSlot, uint8_t deviceSlotCount, 
+                   uint16_t totalSlotCount, uint32_t slotIntervalMs);
 
     /**
      * 开始时隙调度
@@ -104,7 +104,7 @@ public:
      * 获取当前时隙编号
      * @return 当前时隙编号
      */
-    uint8_t getCurrentSlot() const { return currentSlotInfo_.currentSlot; }
+    uint16_t getCurrentSlot() const { return currentSlotInfo_.currentSlot; }
 
     /**
      * 检查当前时隙是否为本设备的激活时隙
@@ -122,9 +122,9 @@ public:
 
 private:
     // 配置参数
-    uint8_t startSlot_;         // 本设备的起始时隙编号
+    uint16_t startSlot_;         // 本设备的起始时隙编号
     uint8_t deviceSlotCount_;   // 本设备负责的时隙数量
-    uint8_t totalSlotCount_;    // 整个系统的总时隙数
+    uint16_t totalSlotCount_;    // 整个系统的总时隙数
     uint32_t slotIntervalMs_;   // 时隙间隔（毫秒）
 
     // 运行状态
@@ -150,11 +150,11 @@ private:
      * @param slotNumber 时隙编号
      * @return 时隙类型
      */
-    SlotType calculateSlotType(uint8_t slotNumber);
+    SlotType calculateSlotType(uint16_t slotNumber);
 
     /**
      * 切换到新时隙
      * @param newSlot 新时隙编号
      */
-    void switchToSlot(uint8_t newSlot);
+    void switchToSlot(uint16_t newSlot);
 };

@@ -15,8 +15,8 @@ SlotManager::SlotManager()
     elog_v("SlotManager", "SlotManager constructed");
 }
 
-bool SlotManager::configure(uint8_t startSlot, uint8_t deviceSlotCount, 
-                           uint8_t totalSlotCount, uint32_t slotIntervalMs) {
+bool SlotManager::configure(uint16_t startSlot, uint8_t deviceSlotCount, 
+                           uint16_t totalSlotCount, uint32_t slotIntervalMs) {
     if (isRunning_) {
         elog_e("SlotManager", "Cannot configure while running");
         return false;
@@ -120,7 +120,7 @@ void SlotManager::process() {
     
     // 基于绝对时间计算当前应该处于哪个时隙
     uint64_t elapsedFromStartUs = currentTimeUs - startTimeUs_;
-    uint8_t expectedSlot = (elapsedFromStartUs / slotIntervalUs) % totalSlotCount_;
+    uint16_t expectedSlot = (elapsedFromStartUs / slotIntervalUs) % totalSlotCount_;
     
     // 检查是否需要切换到新的时隙
     if (expectedSlot != currentSlotInfo_.currentSlot) {
@@ -159,7 +159,7 @@ uint64_t SlotManager::getCurrentSyncTimeUs() {
     return hal_hptimer_get_us();
 }
 
-SlotType SlotManager::calculateSlotType(uint8_t slotNumber) {
+SlotType SlotManager::calculateSlotType(uint16_t slotNumber) {
     // 检查是否在本设备的时隙范围内
     if (slotNumber >= startSlot_ && slotNumber < startSlot_ + deviceSlotCount_) {
         return SlotType::ACTIVE;
@@ -167,7 +167,7 @@ SlotType SlotManager::calculateSlotType(uint8_t slotNumber) {
     return SlotType::INACTIVE;
 }
 
-void SlotManager::switchToSlot(uint8_t newSlot) {
+void SlotManager::switchToSlot(uint16_t newSlot) {
     currentSlotInfo_.currentSlot = newSlot;
     currentSlotInfo_.slotType = calculateSlotType(newSlot);
     
