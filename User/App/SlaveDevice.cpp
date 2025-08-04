@@ -37,18 +37,20 @@ SlaveDevice::SlaveDevice()
 
     // Initialize slot manager
     slotManager = std::make_unique<SlotManager>();
-    
+
     // 设置时隙管理器的同步时间回调
     if (slotManager) {
         slotManager->setSyncTimeCallback(
             [this]() { return this->getSyncTimestampUs(); });
-            
+
         // 设置时隙切换回调
-        slotManager->setSlotCallback(
-            [this](const SlotInfo& slotInfo) { 
-                this->onSlotChanged(slotInfo); 
-            });
+        slotManager->setSlotCallback([this](const SlotInfo& slotInfo) {
+            this->onSlotChanged(slotInfo);
+        });
     }
+
+    // set MTU = 1016
+    processor.setMTU(FRAME_LEN_MAX);
 
     // Initialize message handlers
     initializeMessageHandlers();
@@ -150,27 +152,27 @@ uint32_t SlaveDevice::getSyncTimestampMs() {
 void SlaveDevice::resetDevice() {
     // 保留配置，但重置状态
     deviceState = SlaveDeviceState::READY;
-    
+
     // 停止采集相关状态
     if (isCollecting && continuityCollector) {
         continuityCollector->stopCollection();
         isCollecting = false;
     }
-    
+
     // 停止时隙管理器
     if (slotManager) {
         slotManager->stop();
     }
-    
+
     // 重置数据发送相关状态
     hasDataToSend = false;
     isFirstCollection = true;
     lastCollectionData.clear();
-    
+
     // 重置启动调度相关状态
     isScheduledToStart = false;
     scheduledStartTime = 0;
-    
+
     elog_v("SlaveDevice",
            "Device reset to READY state, configuration preserved");
 }
@@ -182,13 +184,12 @@ void SlaveDevice::onSlotChanged(const SlotInfo& slotInfo) {
     }
 
     // 检查是否是本设备的第一个激活时隙，且有数据待发送
-    if (slotInfo.slotType == SlotType::ACTIVE && 
-        slotInfo.activePin == 0 && // 第一个激活引脚
-        hasDataToSend && 
-        !isFirstCollection) {
-        
-        elog_v(TAG, "Reached own first active slot, sending cached data to backend");
-        
+    if (slotInfo.slotType == SlotType::ACTIVE &&
+        slotInfo.activePin == 0 &&    // 第一个激活引脚
+        hasDataToSend && !isFirstCollection) {
+        elog_v(TAG,
+               "Reached own first active slot, sending cached data to backend");
+
         // 发送缓存的数据
         if (dataCollectionTask) {
             dataCollectionTask->sendDataToBackend();
@@ -197,11 +198,8 @@ void SlaveDevice::onSlotChanged(const SlotInfo& slotInfo) {
     }
 
     // 通知采集器处理当前时隙
-    continuityCollector->processSlot(
-        slotInfo.currentSlot, 
-        slotInfo.activePin, 
-        slotInfo.slotType == SlotType::ACTIVE
-    );
+    continuityCollector->processSlot(slotInfo.currentSlot, slotInfo.activePin,
+                                     slotInfo.slotType == SlotType::ACTIVE);
 
     // 检查采集是否完成
     if (continuityCollector->isCollectionComplete()) {
@@ -212,7 +210,8 @@ void SlaveDevice::onSlotChanged(const SlotInfo& slotInfo) {
             auto dataVector = continuityCollector->getDataVector();
             lastCollectionData = dataVector;
             hasDataToSend = true;
-            elog_v(TAG, "Saved %d bytes of data for next transmission", dataVector.size());
+            elog_v(TAG, "Saved %d bytes of data for next transmission",
+                   dataVector.size());
         } else {
             // 第一次采集完成，标记为非第一次
             isFirstCollection = false;
@@ -221,7 +220,7 @@ void SlaveDevice::onSlotChanged(const SlotInfo& slotInfo) {
 
         // 清空数据矩阵并准备下一轮采集
         continuityCollector->clearData();
-        
+
         // 重新启动采集器
         if (continuityCollector->startCollection()) {
             elog_v(TAG, "Starting new data collection cycle");
@@ -479,7 +478,7 @@ void SlaveDevice::DataCollectionTask::task() {
     for (;;) {
         // 处理数据采集状态
         processDataCollection();
-        
+
         // 处理时隙管理器状态
         if (parent.slotManager && parent.isCollecting) {
             parent.slotManager->process();
@@ -511,11 +510,14 @@ void SlaveDevice::DataCollectionTask::processDataCollection() {
                 parent.deviceState = SlaveDeviceState::RUNNING;
                 parent.isScheduledToStart = false;
                 parent.scheduledStartTime = 0;
-                parent.isFirstCollection = true;  // 重置为第一次采集
+                parent.isFirstCollection = true;    // 重置为第一次采集
                 elog_i(TAG,
-                       "Data collection and slot management started successfully from scheduled start");
+                       "Data collection and slot management started "
+                       "successfully from scheduled start");
             } else {
-                elog_e(TAG, "Failed to start scheduled data collection or slot management");
+                elog_e(TAG,
+                       "Failed to start scheduled data collection or slot "
+                       "management");
                 parent.deviceState = SlaveDeviceState::DEV_ERR;
                 parent.isScheduledToStart = false;
                 parent.scheduledStartTime = 0;
@@ -567,7 +569,8 @@ void SlaveDevice::DataCollectionTask::sendDataToBackend() {
         }
 
         if (success) {
-            elog_v(TAG, "Cached data successfully sent to backend (%d fragments)",
+            elog_v(TAG,
+                   "Cached data successfully sent to backend (%d fragments)",
                    packedData.size());
             // 发送成功后清空缓存数据
             parent.lastCollectionData.clear();

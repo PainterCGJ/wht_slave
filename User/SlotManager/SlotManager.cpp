@@ -131,7 +131,7 @@ void SlotManager::process() {
         uint64_t slotCycles = elapsedFromStartUs / slotIntervalUs;
         lastSlotTimeUs_ = startTimeUs_ + slotCycles * slotIntervalUs;
         
-        elog_d("SlotManager", "Absolute time sync - Expected slot: %d, Elapsed: %lu us", 
+        elog_v("SlotManager", "Absolute time sync - Expected slot: %d, Elapsed: %lu us", 
                expectedSlot, (unsigned long)elapsedFromStartUs);
     }
 }
