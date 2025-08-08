@@ -81,6 +81,7 @@ bool CX310_SlaveSpiAdapter::send(std::vector<uint8_t>& tx_data) {
 
 bool CX310_SlaveSpiAdapter::get_recv_data(std::queue<uint8_t>& rx_data) {
     if (rx_semaphore.take(0)) {
+        // elog_w("UWB", "recv_len: %d", recv_len);
         for (int i = 0; i < recv_len + 4; i++) {
             rx_data.push(rx_buffer[i]);
         }

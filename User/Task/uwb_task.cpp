@@ -191,6 +191,7 @@ static void uwb_comm_task(void *argument) {
     if (uwb.init()) {
         elog_i(TAG, "uwb.init success");
     }
+    osDelay(3);
     uwb.set_recv_mode();
 
     for (;;) {
@@ -205,7 +206,9 @@ static void uwb_comm_task(void *argument) {
 
         if (uwb.get_recv_data(buffer)) {
             uwb.set_recv_mode();
-            for (int i = 0; i < buffer.size(); i++) {
+            elog_w(TAG, "buffer size: %d", buffer.size());
+            rx_msg.data_len = buffer.size();
+            for (int i = 0; i < rx_msg.data_len; i++) {
                 rx_msg.data[i] = buffer[i];
             }
             rx_msg.timestamp = osKernelGetTickCount();

@@ -11,7 +11,7 @@
 #include "cx_uci.hpp"
 #include "elog.h"
 
-#define UWB_GENERAL_TIMEOUT_MS 2
+#define UWB_GENERAL_TIMEOUT_MS 2000
 
 template <class Interface>
 class CX310 {
@@ -602,7 +602,7 @@ class CX310 {
         };
 
         if (__send_packet()) {
-            // elog_i(TAG, "set recv mode");
+            elog_i(TAG, "set recv mode");
             return true;
         }
         elog_e(TAG, "set recv mode fail");
@@ -664,20 +664,19 @@ class CX310 {
 
     bool init() {
         __init();
-
-        init_success &= set_hprf();
         init_success &=
             set_channel(PARAM_CHANNEL_NUMBER_9);    // channel 5 // channel 5
+        init_success &=
+            set_phr_mode(PARAM_PHYDATARATE_DRHM_HR);    // PHR mode 4
+        init_success &= set_sfd_id(2);                  // SFD ID 3 // SFD ID 3
         init_success &= set_prf_mode(PARAM_PRF_NOMINAL_64_M);    // PRF mode 3
         init_success &= set_preamble_length(
             PARAM_PREAMBLE_LEN_BPRF_64);          // preamble length 1
         init_success &= set_preamble_index(9);    // preamble index 9
         init_success &=
             set_psdu_data_rate(PARAM_PSDU_DATA_RATE_7_8);    // PSDU data rate 4
-        init_success &=
-            set_phr_mode(PARAM_PHYDATARATE_DRHM_HR);    // PHR mode 4
-        init_success &= set_sfd_id(2);                  // SFD ID 3 // SFD ID 3
-        init_success &= set_tx_power(1);                // TX power 5
+
+        init_success &= set_tx_power(1);    // TX power 5
         return 0;
     }
 
@@ -717,6 +716,7 @@ class CX310 {
             __load_recv_data();
             while (rx_data_queue.empty() == false) {
                 _data = rx_data_queue.front();
+                // elog_w(TAG, "recv data: %02x", _data);
                 rx_data_queue.pop();
 
                 if (recv_packet.flow_parse(_data)) {
