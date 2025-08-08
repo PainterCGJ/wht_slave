@@ -24,6 +24,7 @@ class CX310_SlaveSpiAdapter : public ICX310 {
    private:
     // 接收缓冲区
     uint8_t rx_buffer[1024];
+    uint8_t dummy_data[1024];
     uint16_t recv_len;
     BinarySemaphore rx_semaphore = {"rx_semaphore"};
     long waswoken = 0;

@@ -191,32 +191,30 @@ static void uwb_comm_task(void *argument) {
     if (uwb.init()) {
         elog_i(TAG, "uwb.init success");
     }
-    // uwb.set_recv_mode();
+    uwb.set_recv_mode();
 
     for (;;) {
-        // if (osMessageQueueGet(uwb_txQueue, &tx_msg, NULL, 0) == osOK) {
-        //     // 发送UWB数据
-        //     // 将tx_msg.data转换为std::vector<uint8_t>
-        //     std::vector<uint8_t> tx_data(tx_msg.data,
-        //                                  tx_msg.data + tx_msg.data_len);
-        //     uwb.data_transmit(tx_data);
-        //     // 发送完成后重新启动接收
-        //     uwb.set_recv_mode();
-        //     break;
-        // }
+        if (osMessageQueueGet(uwb_txQueue, &tx_msg, NULL, 0) == osOK) {
+            // 发送UWB数据
+            std::vector<uint8_t> tx_data(tx_msg.data,
+                                         tx_msg.data + tx_msg.data_len);
+            uwb.data_transmit(tx_data);
+            // 发送完成后重新启动接收
+            uwb.set_recv_mode();
+        }
 
-        // if (uwb.get_recv_data(buffer)) {
-        //     uwb.set_recv_mode();
-        //     for (int i = 0; i < buffer.size(); i++) {
-        //         rx_msg.data[i] = buffer[i];
-        //     }
-        //     rx_msg.timestamp = osKernelGetTickCount();
-        //     rx_msg.status_reg = 0;
-        //     osMessageQueuePut(uwb_rxQueue, &rx_msg, 0, 0);
-        // }
+        if (uwb.get_recv_data(buffer)) {
+            uwb.set_recv_mode();
+            for (int i = 0; i < buffer.size(); i++) {
+                rx_msg.data[i] = buffer[i];
+            }
+            rx_msg.timestamp = osKernelGetTickCount();
+            rx_msg.status_reg = 0;
+            osMessageQueuePut(uwb_rxQueue, &rx_msg, 0, 0);
+        }
 
-        // uwb.update();
-        osDelay(1);    // 防止任务占满CPU
+        uwb.update();
+        osDelay(1);
     }
 }
 #endif
@@ -241,7 +239,7 @@ void UWB_Task_Init(void) {
     const osThreadAttr_t uwbTask_attributes = {
         .name = "uwbCommTask",
         .stack_size = 512 * 16,
-        .priority = (osPriority_t)osPriorityNormal,
+        .priority = (osPriority_t)osPriorityRealtime,
     };
     uwbCommTaskHandle = osThreadNew(uwb_comm_task, NULL, &uwbTask_attributes);
 

@@ -221,7 +221,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
   if (GPIO_Pin == UWB_INT_Pin)
   {
-    elog_i("EXTI", "INT low");
     uwb_int_handler_wrapper();
   }
 }

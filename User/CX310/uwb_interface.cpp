@@ -13,7 +13,9 @@ extern "C" void uwb_int_handler_wrapper(void) {
 }
 
 // 构造函数
-CX310_SlaveSpiAdapter::CX310_SlaveSpiAdapter() {}
+CX310_SlaveSpiAdapter::CX310_SlaveSpiAdapter() {
+    memset(dummy_data, 0x00, sizeof(dummy_data));
+}
 
 // 析构函数
 CX310_SlaveSpiAdapter::~CX310_SlaveSpiAdapter() {}
@@ -38,21 +40,20 @@ void CX310_SlaveSpiAdapter::int_pin_irq_handler() {
         while (a--) {
             __NOP();
         }
-        if (HAL_SPI_Receive(&hspi4, rx_buffer, 4, HAL_MAX_DELAY) != HAL_OK) {
+        if (HAL_SPI_TransmitReceive(&hspi4, dummy_data, rx_buffer, 4,
+                                    HAL_MAX_DELAY) != HAL_OK) {
             nss_high();
         }
         recv_len = (((uint16_t)rx_buffer[2]) << 8) | rx_buffer[3];
-        if (HAL_SPI_Receive(&hspi4, rx_buffer + 4, recv_len, HAL_MAX_DELAY) !=
-            HAL_OK) {
+        if (HAL_SPI_TransmitReceive(&hspi4, dummy_data, rx_buffer + 4, recv_len,
+                                    HAL_MAX_DELAY) != HAL_OK) {
             nss_high();
         }
-        // elog_i("UWB", "recv_len: %d", recv_len);
         nss_high();
         rx_semaphore.give_ISR(waswoken);
     }
 }
 
-// ICX310接口实现
 void CX310_SlaveSpiAdapter::reset_pin_init() {
     // 已在CubeMX中初始化并保证高电平
     HAL_GPIO_WritePin(UWB_RST_GPIO_Port, UWB_RST_Pin, GPIO_PIN_SET);

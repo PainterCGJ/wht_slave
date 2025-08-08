@@ -11,7 +11,7 @@
 #include "cx_uci.hpp"
 #include "elog.h"
 
-#define UWB_GENERAL_TIMEOUT_MS 5000
+#define UWB_GENERAL_TIMEOUT_MS 2
 
 template <class Interface>
 class CX310 {
@@ -71,7 +71,7 @@ class CX310 {
             }
         }
         elog_e(TAG, "software reset fail");
-        elog_e(TAG, "hardware reset start");
+        elog_w(TAG, "hardware reset start");
 
         interface.generate_reset_signal();
         interface.delay_ms(100);
@@ -80,7 +80,7 @@ class CX310 {
         while (interface.get_system_1ms_ticks() - start_tick < timeout_ms) {
             update();
             if (uwbs_sta == READY) {
-                elog_v(TAG, "hardware reset successfully");
+                elog_i(TAG, "hardware reset successfully");
                 return true;
             }
         }
@@ -507,7 +507,7 @@ class CX310 {
         };
 
         if (__send_packet()) {
-            elog_i(TAG, "data transmit");
+            // elog_i(TAG, "data transmit");
             return true;
         }
         elog_e(TAG, "data transmit fail");
@@ -602,7 +602,7 @@ class CX310 {
         };
 
         if (__send_packet()) {
-            elog_i(TAG, "set recv mode");
+            // elog_i(TAG, "set recv mode");
             return true;
         }
         elog_e(TAG, "set recv mode fail");

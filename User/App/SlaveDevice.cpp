@@ -604,6 +604,7 @@ void SlaveDevice::SlaveDataProcT::task() {
 
             if (!recvData.empty()) {
                 // process recvData
+                elog_d(TAG, "recvData size: %d", recvData.size());
                 parent.processor.processReceivedData(recvData);
 
                 // process complete frame
