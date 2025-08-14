@@ -51,7 +51,7 @@ extern "C" int main_app(void) {
         // elog_i(TAG, "Voltage: %d.%03d V", voltage_mv / 1000, voltage_mv % 1000);
         // elog_i(TAG, "slave_app running");
         HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-        osDelay(500);
+        osDelay(100);
     }
     return 0;
 }
