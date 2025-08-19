@@ -38,6 +38,7 @@ set(MX_Application_Src
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/syscalls.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/bootloader_flag.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/uart_cmd_handler.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/factory_test.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../startup_stm32f429xx.s
 )
 
