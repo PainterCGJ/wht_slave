@@ -34,7 +34,7 @@
 - Target: 0x02 (底板) 或 0x01 (工装)
 - MSG_ID: 消息类型
 - Length: Payload长度 (小端)
-- CRC16: CRC16-CCITT-FALSE校验码 (小端)
+- CRC16: CRC16-MODBUS校验码 (小端)
 - EOF: 0x66BB (小端: BB 66)
 
 ### 支持的消息类型

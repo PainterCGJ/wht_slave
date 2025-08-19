@@ -143,7 +143,7 @@ bool factory_test_is_enabled(void);
 void factory_test_process_data(uint8_t data);  // Store data in ring buffer (interrupt)
 void factory_test_task_process(void);          // Process frames from ring buffer (task)
 bool factory_test_parse_frame(const uint8_t* buffer, uint16_t length, factory_test_frame_t* frame);
-uint16_t factory_test_calculate_crc16(const uint8_t* data, uint16_t length);
+uint16_t factory_test_calculate_crc16(const uint8_t* data, uint16_t length);  // CRC16-MODBUS
 void factory_test_send_response(const factory_test_frame_t* response);
 
 void factory_test_handle_heartbeat(const factory_test_frame_t* frame);

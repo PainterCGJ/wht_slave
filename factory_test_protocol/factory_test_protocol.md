@@ -10,7 +10,7 @@
 | | | MSG ID | 1 | 命令码，定义操作的大类 |
 | | | payload length | 2 | `Data` 字段的字节长度 (小端模式) |
 | | payload | | N | 数据负载，用于传递具体参数或子命令 |
-| CRC16 | | | 2 | 对 MSG 字段进行 CRC16-CCITT-FALSE 校验 |
+| CRC16 | | | 2 | 对 MSG 字段进行 CRC16-MODBUS 校验 |
 | EOF | | | 2 | 结束帧 (End of Frame): `0x66BB`<br/>按字节打包时遵循小端模式为 BB 66 |
 
 
