@@ -46,7 +46,8 @@ extern "C" {
 /* Message IDs */
 #define MSG_ID_HEARTBEAT           0x0F
 #define MSG_ID_GPIO_CONTROL        0x10
-#define MSG_ID_SPECIAL_IO_CONTROL  0x11
+#define MSG_ID_64WAY_IO_CONTROL    0x11
+#define MSG_ID_DIP_SWITCH_CONTROL  0x12
 #define MSG_ID_EXECUTE_TEST        0x30
 
 /* Sub-command IDs for GPIO control (MSG_ID = 0x10) */
@@ -148,7 +149,8 @@ void factory_test_send_response(const factory_test_frame_t* response);
 
 void factory_test_handle_heartbeat(const factory_test_frame_t* frame);
 void factory_test_handle_gpio_control(const factory_test_frame_t* frame);
-void factory_test_handle_special_io_control(const factory_test_frame_t* frame);
+void factory_test_handle_64way_io_control(const factory_test_frame_t* frame);
+void factory_test_handle_dip_switch_control(const factory_test_frame_t* frame);
 void factory_test_handle_execute_test(const factory_test_frame_t* frame);
 
 device_status_t factory_test_gpio_set_mode(uint8_t port_id, uint16_t pin_mask, uint8_t mode);

@@ -185,7 +185,7 @@ void factory_test_enter_mode(void) {
     test_state = FACTORY_TEST_ENABLED;
     ring_buffer_reset();
     factory_test_reset_frame_buffer();
-    // elog_set_filter_tag_lvl(TAG, ELOG_LVL_ERROR);
+    elog_set_filter_tag_lvl(TAG, ELOG_LVL_ERROR);
 
     elog_i(TAG, "Entered factory test mode");
 
@@ -269,9 +269,13 @@ void factory_test_task_process(void) {
                             elog_v(TAG, "gpio_control");
                             factory_test_handle_gpio_control(&frame);
                             break;
-                        case MSG_ID_SPECIAL_IO_CONTROL:
-                            elog_v(TAG, "special_io_control");
-                            factory_test_handle_special_io_control(&frame);
+                        case MSG_ID_64WAY_IO_CONTROL:
+                            elog_v(TAG, "64way_io_control");
+                            factory_test_handle_64way_io_control(&frame);
+                            break;
+                        case MSG_ID_DIP_SWITCH_CONTROL:
+                            elog_v(TAG, "dip_switch_control");
+                            factory_test_handle_dip_switch_control(&frame);
                             break;
                         case MSG_ID_EXECUTE_TEST:
                             elog_v(TAG, "execute_test");
@@ -534,171 +538,211 @@ void factory_test_handle_gpio_control(const factory_test_frame_t* frame) {
 }
 
 /**
- * @brief  Handle special IO control message (MSG_ID = 0x11)
+ * @brief  Handle 64-way IO control message (MSG_ID = 0x11)
  * @param  frame: Pointer to received frame
  * @retval None
  */
-void factory_test_handle_special_io_control(const factory_test_frame_t* frame) {
-    if (frame->payload_len < 2) {
-        elog_w(TAG, "Special IO control payload too short");
+void factory_test_handle_64way_io_control(const factory_test_frame_t* frame) {
+    if (frame->payload_len < 1) {
+        elog_w(TAG, "64-way IO control payload too short");
         return;
     }
 
     uint8_t sub_id = frame->payload[0];
-    uint8_t target_id = frame->payload[1];
-
     factory_test_frame_t response;
     device_status_t status = DEVICE_OK;
 
-    elog_d(TAG, "Special IO control: sub_id=0x%02X, target_id=0x%02X", sub_id,
-           target_id);
-
-    // Validate target ID
-    if (target_id != 0x01 && target_id != 0x02) {
-        uint8_t response_payload[3] = {sub_id, target_id,
-                                       DEVICE_ERR_INVALID_PORT};
-        factory_test_create_response_frame(&response, MSG_ID_SPECIAL_IO_CONTROL,
-                                           response_payload, 3);
-        factory_test_send_response(&response);
-        return;
-    }
+    elog_d(TAG, "64-way IO control: sub_id=0x%02X", sub_id);
 
     switch (sub_id) {
         case 0x01:    // Set mode
-            if ((target_id == 0x01 &&
-                 frame->payload_len >=
-                     10) ||    // 64-way IO: Sub-ID(1) + Target-ID(1) + Mask(8)
-                               // + Value(1) = 11
-                (target_id == 0x02 &&
-                 frame->payload_len >=
-                     4)) {    // DIP switches: Sub-ID(1) + Target-ID(1) +
-                              // Mask(1) + Value(1) = 4
-
+            if (frame->payload_len >= 10) {    // Sub-ID(1) + Pin-Mask(8) + Value(1) = 10
                 uint64_t pin_mask = 0;
-                uint8_t value = 0;
-
-                if (target_id == 0x01) {
-                    // 64-way IO - 8 bytes mask (little endian)
-                    for (int i = 0; i < 8; i++) {
-                        pin_mask |= ((uint64_t)frame->payload[2 + i])
-                                    << (i * 8);
-                    }
-                    value = frame->payload[10];
-                } else {
-                    // DIP switches - 1 byte mask
-                    pin_mask = frame->payload[2];
-                    value = frame->payload[3];
+                // 64-way IO - 8 bytes mask (little endian)
+                for (int i = 0; i < 8; i++) {
+                    pin_mask |= ((uint64_t)frame->payload[1 + i]) << (i * 8);
                 }
+                uint8_t value = frame->payload[9];
 
-                status = special_io_set_mode(target_id, pin_mask, value);
-                uint8_t response_payload[3] = {sub_id, target_id, status};
+                status = special_io_set_mode(0x01, pin_mask, value);
+                uint8_t response_payload[2] = {sub_id, status};
                 factory_test_create_response_frame(
-                    &response, MSG_ID_SPECIAL_IO_CONTROL, response_payload, 3);
+                    &response, MSG_ID_64WAY_IO_CONTROL, response_payload, 2);
             } else {
-                uint8_t response_payload[3] = {sub_id, target_id,
-                                               DEVICE_ERR_EXECUTION};
+                uint8_t response_payload[2] = {sub_id, DEVICE_ERR_EXECUTION};
                 factory_test_create_response_frame(
-                    &response, MSG_ID_SPECIAL_IO_CONTROL, response_payload, 3);
+                    &response, MSG_ID_64WAY_IO_CONTROL, response_payload, 2);
             }
             break;
 
         case 0x02:    // Set pull
-            if ((target_id == 0x01 && frame->payload_len >= 10) ||
-                (target_id == 0x02 && frame->payload_len >= 4)) {
+            if (frame->payload_len >= 10) {
                 uint64_t pin_mask = 0;
-                uint8_t value = 0;
-
-                if (target_id == 0x01) {
-                    for (int i = 0; i < 8; i++) {
-                        pin_mask |= ((uint64_t)frame->payload[2 + i])
-                                    << (i * 8);
-                    }
-                    value = frame->payload[10];
-                } else {
-                    pin_mask = frame->payload[2];
-                    value = frame->payload[3];
+                for (int i = 0; i < 8; i++) {
+                    pin_mask |= ((uint64_t)frame->payload[1 + i]) << (i * 8);
                 }
+                uint8_t value = frame->payload[9];
 
-                status = special_io_set_pull(target_id, pin_mask, value);
-                uint8_t response_payload[3] = {sub_id, target_id, status};
+                status = special_io_set_pull(0x01, pin_mask, value);
+                uint8_t response_payload[2] = {sub_id, status};
                 factory_test_create_response_frame(
-                    &response, MSG_ID_SPECIAL_IO_CONTROL, response_payload, 3);
+                    &response, MSG_ID_64WAY_IO_CONTROL, response_payload, 2);
             } else {
-                uint8_t response_payload[3] = {sub_id, target_id,
-                                               DEVICE_ERR_EXECUTION};
+                uint8_t response_payload[2] = {sub_id, DEVICE_ERR_EXECUTION};
                 factory_test_create_response_frame(
-                    &response, MSG_ID_SPECIAL_IO_CONTROL, response_payload, 3);
+                    &response, MSG_ID_64WAY_IO_CONTROL, response_payload, 2);
             }
             break;
 
         case 0x03:    // Write level
-            if ((target_id == 0x01 && frame->payload_len >= 10) ||
-                (target_id == 0x02 && frame->payload_len >= 4)) {
+            if (frame->payload_len >= 10) {
                 uint64_t pin_mask = 0;
-                uint8_t value = 0;
-
-                if (target_id == 0x01) {
-                    for (int i = 0; i < 8; i++) {
-                        pin_mask |= ((uint64_t)frame->payload[2 + i])
-                                    << (i * 8);
-                    }
-                    value = frame->payload[10];
-                } else {
-                    pin_mask = frame->payload[2];
-                    value = frame->payload[3];
+                for (int i = 0; i < 8; i++) {
+                    pin_mask |= ((uint64_t)frame->payload[1 + i]) << (i * 8);
                 }
+                uint8_t value = frame->payload[9];
 
-                status = special_io_write_level(target_id, pin_mask, value);
-                uint8_t response_payload[3] = {sub_id, target_id, status};
+                status = special_io_write_level(0x01, pin_mask, value);
+                uint8_t response_payload[2] = {sub_id, status};
                 factory_test_create_response_frame(
-                    &response, MSG_ID_SPECIAL_IO_CONTROL, response_payload, 3);
+                    &response, MSG_ID_64WAY_IO_CONTROL, response_payload, 2);
             } else {
-                uint8_t response_payload[3] = {sub_id, target_id,
-                                               DEVICE_ERR_EXECUTION};
+                uint8_t response_payload[2] = {sub_id, DEVICE_ERR_EXECUTION};
                 factory_test_create_response_frame(
-                    &response, MSG_ID_SPECIAL_IO_CONTROL, response_payload, 3);
+                    &response, MSG_ID_64WAY_IO_CONTROL, response_payload, 2);
             }
             break;
 
         case 0x04:    // Read level
         {
             uint64_t levels = 0;
-            status = special_io_read_level(target_id, &levels);
+            status = special_io_read_level(0x01, &levels);
 
-            if (target_id == 0x01) {
-                // 64-way IO response: Sub-ID(1) + Target-ID(1) + Levels(8)
+            if (status == DEVICE_OK) {
+                // 64-way IO response: Sub-ID(1) + Status(1) + Levels(8)
                 uint8_t response_payload[10];
                 response_payload[0] = sub_id;
-                response_payload[1] = target_id;
+                response_payload[1] = status;
                 for (int i = 0; i < 8; i++) {
                     response_payload[2 + i] = (levels >> (i * 8)) & 0xFF;
                 }
                 factory_test_create_response_frame(
-                    &response, MSG_ID_SPECIAL_IO_CONTROL, response_payload, 10);
+                    &response, MSG_ID_64WAY_IO_CONTROL, response_payload, 10);
             } else {
-                // DIP switches response: Sub-ID(1) + Target-ID(1) + Levels(1)
-                uint8_t response_payload[3];
-                response_payload[0] = sub_id;
-                response_payload[1] = target_id;
-                response_payload[2] = levels & 0xFF;
+                uint8_t response_payload[2] = {sub_id, status};
                 factory_test_create_response_frame(
-                    &response, MSG_ID_SPECIAL_IO_CONTROL, response_payload, 3);
+                    &response, MSG_ID_64WAY_IO_CONTROL, response_payload, 2);
             }
         } break;
 
         default: {
-            uint8_t response_payload[3] = {sub_id, target_id,
-                                           DEVICE_ERR_INVALID_SUB_ID};
+            uint8_t response_payload[2] = {sub_id, DEVICE_ERR_INVALID_SUB_ID};
             factory_test_create_response_frame(
-                &response, MSG_ID_SPECIAL_IO_CONTROL, response_payload, 3);
+                &response, MSG_ID_64WAY_IO_CONTROL, response_payload, 2);
         } break;
     }
 
     factory_test_send_response(&response);
-    elog_d(TAG,
-           "Special IO control response sent, sub_id=0x%02X, target_id=0x%02X, "
-           "status=%d",
-           sub_id, target_id, status);
+    elog_d(TAG, "64-way IO control response sent, sub_id=0x%02X, status=%d",
+           sub_id, status);
+}
+
+/**
+ * @brief  Handle DIP switch control message (MSG_ID = 0x12)
+ * @param  frame: Pointer to received frame
+ * @retval None
+ */
+void factory_test_handle_dip_switch_control(const factory_test_frame_t* frame) {
+    if (frame->payload_len < 1) {
+        elog_w(TAG, "DIP switch control payload too short");
+        return;
+    }
+
+    uint8_t sub_id = frame->payload[0];
+    factory_test_frame_t response;
+    device_status_t status = DEVICE_OK;
+
+    elog_d(TAG, "DIP switch control: sub_id=0x%02X", sub_id);
+
+    switch (sub_id) {
+        case 0x01:    // Set mode
+            if (frame->payload_len >= 3) {    // Sub-ID(1) + Pin-Mask(1) + Value(1) = 3
+                uint8_t pin_mask = frame->payload[1];
+                uint8_t value = frame->payload[2];
+
+                status = special_io_set_mode(0x02, pin_mask, value);
+                uint8_t response_payload[2] = {sub_id, status};
+                factory_test_create_response_frame(
+                    &response, MSG_ID_DIP_SWITCH_CONTROL, response_payload, 2);
+            } else {
+                uint8_t response_payload[2] = {sub_id, DEVICE_ERR_EXECUTION};
+                factory_test_create_response_frame(
+                    &response, MSG_ID_DIP_SWITCH_CONTROL, response_payload, 2);
+            }
+            break;
+
+        case 0x02:    // Set pull
+            if (frame->payload_len >= 3) {
+                uint8_t pin_mask = frame->payload[1];
+                uint8_t value = frame->payload[2];
+
+                status = special_io_set_pull(0x02, pin_mask, value);
+                uint8_t response_payload[2] = {sub_id, status};
+                factory_test_create_response_frame(
+                    &response, MSG_ID_DIP_SWITCH_CONTROL, response_payload, 2);
+            } else {
+                uint8_t response_payload[2] = {sub_id, DEVICE_ERR_EXECUTION};
+                factory_test_create_response_frame(
+                    &response, MSG_ID_DIP_SWITCH_CONTROL, response_payload, 2);
+            }
+            break;
+
+        case 0x03:    // Write level
+            if (frame->payload_len >= 3) {
+                uint8_t pin_mask = frame->payload[1];
+                uint8_t value = frame->payload[2];
+
+                status = special_io_write_level(0x02, pin_mask, value);
+                uint8_t response_payload[2] = {sub_id, status};
+                factory_test_create_response_frame(
+                    &response, MSG_ID_DIP_SWITCH_CONTROL, response_payload, 2);
+            } else {
+                uint8_t response_payload[2] = {sub_id, DEVICE_ERR_EXECUTION};
+                factory_test_create_response_frame(
+                    &response, MSG_ID_DIP_SWITCH_CONTROL, response_payload, 2);
+            }
+            break;
+
+        case 0x04:    // Read level
+        {
+            uint64_t levels = 0;
+            status = special_io_read_level(0x02, &levels);
+
+            if (status == DEVICE_OK) {
+                // DIP switch response: Sub-ID(1) + Status(1) + Levels(1)
+                uint8_t response_payload[3];
+                response_payload[0] = sub_id;
+                response_payload[1] = status;
+                response_payload[2] = levels & 0xFF;
+                factory_test_create_response_frame(
+                    &response, MSG_ID_DIP_SWITCH_CONTROL, response_payload, 3);
+            } else {
+                uint8_t response_payload[2] = {sub_id, status};
+                factory_test_create_response_frame(
+                    &response, MSG_ID_DIP_SWITCH_CONTROL, response_payload, 2);
+            }
+        } break;
+
+        default: {
+            uint8_t response_payload[2] = {sub_id, DEVICE_ERR_INVALID_SUB_ID};
+            factory_test_create_response_frame(
+                &response, MSG_ID_DIP_SWITCH_CONTROL, response_payload, 2);
+        } break;
+    }
+
+    factory_test_send_response(&response);
+    elog_d(TAG, "DIP switch control response sent, sub_id=0x%02X, status=%d",
+           sub_id, status);
 }
 
 /**
