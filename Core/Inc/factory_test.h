@@ -44,11 +44,19 @@ extern "C" {
 #define FRAME_PAYLOAD_OFFSET        7
 
 /* Message IDs */
-#define MSG_ID_HEARTBEAT           0x0F
 #define MSG_ID_GPIO_CONTROL        0x10
 #define MSG_ID_64WAY_IO_CONTROL    0x11
 #define MSG_ID_DIP_SWITCH_CONTROL  0x12
-#define MSG_ID_EXECUTE_TEST        0x30
+#define MSG_ID_ADDITIONAL_TEST     0x20
+#define MSG_ID_ENTER_TEST          0x21 
+#define MSG_ID_HEARTBEAT           0x22
+
+/* Sub-command IDs for Additional Test (MSG_ID = 0x30) */
+#define TEST_SUB_UART_LOOPBACK     0x01
+#define TEST_SUB_WRITE_SN          0x02
+#define TEST_SUB_READ_UID          0x10
+#define TEST_SUB_READ_SN           0x11
+#define TEST_SUB_READ_FW_VERSION   0x12
 
 /* Sub-command IDs for GPIO control (MSG_ID = 0x10) */
 #define GPIO_SUB_SET_MODE          0x01
@@ -83,6 +91,19 @@ extern "C" {
 /* GPIO levels */
 #define GPIO_LEVEL_LOW             0x00
 #define GPIO_LEVEL_HIGH            0x01
+
+/* SN Storage Constants */
+#define SN_FLASH_SECTOR            22                    // Flash扇区22用于存储SN
+#define SN_FLASH_ADDRESS           0x081C0000UL          // Sector 22起始地址
+#define SN_MAX_LENGTH              64                    // SN最大长度
+#define SN_MAGIC_NUMBER            0x5AA5A55AUL          // SN存储的魔数
+
+/* Device UID Constants */
+#define DEVICE_UID_SIZE            12                    // 设备UID长度(字节)
+
+/* Test Constants */
+#define UART_LOOPBACK_TEST_STRING  "test"                // 串口回环测试字符串
+#define UART_LOOPBACK_TIMEOUT      1000                  // 串口测试超时时间(ms)
 
 /* Status codes */
 typedef enum {
@@ -127,6 +148,14 @@ typedef struct {
     uint16_t levels;        // Pin levels (Little Endian)
 } gpio_read_response_t;
 
+/* SN storage structure in Flash */
+typedef struct {
+    uint32_t magic;         // 魔数验证
+    uint8_t sn_length;      // SN长度
+    uint8_t sn_data[SN_MAX_LENGTH];  // SN数据
+    uint8_t reserved[3];    // 保留字节，用于32位对齐
+} sn_storage_t;
+
 /* Factory test mode state */
 typedef enum {
     FACTORY_TEST_DISABLED,
@@ -151,7 +180,7 @@ void factory_test_handle_heartbeat(const factory_test_frame_t* frame);
 void factory_test_handle_gpio_control(const factory_test_frame_t* frame);
 void factory_test_handle_64way_io_control(const factory_test_frame_t* frame);
 void factory_test_handle_dip_switch_control(const factory_test_frame_t* frame);
-void factory_test_handle_execute_test(const factory_test_frame_t* frame);
+void factory_test_handle_additional_test(const factory_test_frame_t* frame);
 
 device_status_t factory_test_gpio_set_mode(uint8_t port_id, uint16_t pin_mask, uint8_t mode);
 device_status_t factory_test_gpio_set_pull(uint8_t port_id, uint16_t pin_mask, uint8_t pull);
@@ -160,6 +189,15 @@ device_status_t factory_test_gpio_read_level(uint8_t port_id, uint16_t* levels);
 
 GPIO_TypeDef* factory_test_get_gpio_port(uint8_t port_id);
 uint16_t factory_test_convert_pin_mask(uint16_t mask);
+
+/* SN management functions */
+device_status_t factory_test_write_sn(const uint8_t* sn_data, uint8_t sn_length);
+device_status_t factory_test_read_sn(uint8_t* sn_data, uint8_t* sn_length);
+
+/* Additional test functions */
+device_status_t factory_test_uart_loopback(void);
+device_status_t factory_test_read_device_uid(uint8_t* uid_data);
+device_status_t factory_test_read_firmware_version(uint8_t* version_data);
 
 #ifdef __cplusplus
 }

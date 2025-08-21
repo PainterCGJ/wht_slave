@@ -193,6 +193,41 @@ examples = {
         "payload": "04",
         "expect": "",
     },
+    "串口自测": {
+        "source": 0x01,
+        "target": 0x02,
+        "msg_id": 0x20,
+        "payload": "01",  # 无payload
+        "expect": "",
+    },
+    "写SN": {
+        "source": 0x01,
+        "target": 0x02,
+        "msg_id": 0x20,
+        "payload": "02 0A 11 22 33 44 55 66 77 88 99 00",  # 无payload
+        "expect": "",
+    },
+    "读ID": {
+        "source": 0x01,
+        "target": 0x02,
+        "msg_id": 0x20,
+        "payload": "10",  # 无payload
+        "expect": "",
+    },
+    "读SN": {
+        "source": 0x01,
+        "target": 0x02,
+        "msg_id": 0x20,
+        "payload": "11",  # 无payload
+        "expect": "",
+    },
+    "读FW": {
+        "source": 0x01,
+        "target": 0x02,
+        "msg_id": 0x20,
+        "payload": "12",  # 无payload
+        "expect": "",
+    },
     "进入测试模式": {
         "source": 0x01,
         "target": 0x02,

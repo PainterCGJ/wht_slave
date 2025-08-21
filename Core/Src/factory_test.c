@@ -26,6 +26,7 @@
 #include "elog.h"
 #include "main.h"
 #include "usart.h"
+#include "stm32f4xx_hal_flash_ex.h"
 
 /* Private variables ---------------------------------------------------------*/
 static const char* TAG = "factory_test";
@@ -279,9 +280,9 @@ void factory_test_task_process(void) {
                             elog_v(TAG, "dip_switch_control");
                             factory_test_handle_dip_switch_control(&frame);
                             break;
-                        case MSG_ID_EXECUTE_TEST:
+                        case MSG_ID_ADDITIONAL_TEST:
                             elog_v(TAG, "execute_test");
-                            factory_test_handle_execute_test(&frame);
+                            factory_test_handle_additional_test(&frame);
                             break;
                         default:
                             elog_w(TAG, "Unknown message ID: 0x%02X",
@@ -705,16 +706,127 @@ void factory_test_handle_dip_switch_control(const factory_test_frame_t* frame) {
  * @param  frame: Pointer to received frame
  * @retval None
  */
-void factory_test_handle_execute_test(const factory_test_frame_t* frame) {
-    // TODO: Implement test execution (UART loopback, read UID, etc.)
-    elog_w(TAG, "Execute test not implemented yet");
+void factory_test_handle_additional_test(const factory_test_frame_t* frame) {
+    if (frame->payload_len < 1) {
+        elog_w(TAG, "Additional test payload too short");
+        return;
+    }
 
+    uint8_t sub_id = frame->payload[0];
     factory_test_frame_t response;
-    uint8_t response_payload[2] = {0x01,
-                                   DEVICE_ERR_EXECUTION};    // Sub-ID, Status
-    factory_test_create_response_frame(&response, MSG_ID_EXECUTE_TEST,
-                                       response_payload, 2);
+    device_status_t status = DEVICE_OK;
+
+    elog_d(TAG, "Additional test: sub_id=0x%02X", sub_id);
+
+    switch (sub_id) {
+        case TEST_SUB_UART_LOOPBACK: {
+            // Sub-ID 0x01: UART loopback test
+            status = factory_test_uart_loopback();
+            uint8_t response_payload[2] = {sub_id, status};
+            factory_test_create_response_frame(&response, MSG_ID_ADDITIONAL_TEST,
+                                               response_payload, 2);
+        } break;
+
+        case TEST_SUB_WRITE_SN: {
+            // Sub-ID 0x02: Write SN code
+            if (frame->payload_len < 3) {  // Sub-ID(1) + SN_length(1) + SN_data(>=1)
+                status = DEVICE_ERR_EXECUTION;
+                uint8_t response_payload[2] = {sub_id, status};
+                factory_test_create_response_frame(&response, MSG_ID_ADDITIONAL_TEST,
+                                                   response_payload, 2);
+            } else {
+                uint8_t sn_length = frame->payload[1];
+                const uint8_t* sn_data = &frame->payload[2];
+
+                if (frame->payload_len != (2 + sn_length)) {
+                    status = DEVICE_ERR_EXECUTION;
+                } else {
+                    status = factory_test_write_sn(sn_data, sn_length);
+                }
+
+                uint8_t response_payload[2] = {sub_id, status};
+                factory_test_create_response_frame(&response, MSG_ID_ADDITIONAL_TEST,
+                                                   response_payload, 2);
+            }
+        } break;
+
+        case TEST_SUB_READ_UID: {
+            // Sub-ID 0x03: Read device UID
+            uint8_t uid_data[DEVICE_UID_SIZE];
+            status = factory_test_read_device_uid(uid_data);
+
+            if (status == DEVICE_OK) {
+                // Response: Sub-ID(1) + Status(1) + ID_length(1) + ID_data(12)
+                uint8_t response_payload[15];
+                response_payload[0] = sub_id;
+                response_payload[1] = status;
+                response_payload[2] = DEVICE_UID_SIZE;
+                memcpy(&response_payload[3], uid_data, DEVICE_UID_SIZE);
+                factory_test_create_response_frame(&response, MSG_ID_ADDITIONAL_TEST,
+                                                   response_payload, 15);
+            } else {
+                uint8_t response_payload[2] = {sub_id, status};
+                factory_test_create_response_frame(&response, MSG_ID_ADDITIONAL_TEST,
+                                                   response_payload, 2);
+            }
+        } break;
+
+        case TEST_SUB_READ_SN: {
+            // Sub-ID 0x04: Read SN code
+            uint8_t sn_data[SN_MAX_LENGTH];
+            uint8_t sn_length = 0;
+            status = factory_test_read_sn(sn_data, &sn_length);
+
+            if (status == DEVICE_OK) {
+                // Response: Sub-ID(1) + Status(1) + SN_length(1) + SN_data(N)
+                uint8_t response_payload[3 + SN_MAX_LENGTH];
+                response_payload[0] = sub_id;
+                response_payload[1] = status;
+                response_payload[2] = sn_length;
+                memcpy(&response_payload[3], sn_data, sn_length);
+                factory_test_create_response_frame(&response, MSG_ID_ADDITIONAL_TEST,
+                                                   response_payload, 3 + sn_length);
+            } else {
+                uint8_t response_payload[2] = {sub_id, status};
+                factory_test_create_response_frame(&response, MSG_ID_ADDITIONAL_TEST,
+                                                   response_payload, 2);
+            }
+        } break;
+
+        case TEST_SUB_READ_FW_VERSION: {
+            // Sub-ID 0x05: Read firmware version
+            uint8_t version_data[3];
+            status = factory_test_read_firmware_version(version_data);
+
+            if (status == DEVICE_OK) {
+                // Response: Sub-ID(1) + Status(1) + FW_length(1) + FW_data(3)
+                uint8_t response_payload[6];
+                response_payload[0] = sub_id;
+                response_payload[1] = status;
+                response_payload[2] = 3;  // FW version length
+                response_payload[3] = version_data[0];  // Major
+                response_payload[4] = version_data[1];  // Minor
+                response_payload[5] = version_data[2];  // Patch
+                factory_test_create_response_frame(&response, MSG_ID_ADDITIONAL_TEST,
+                                                   response_payload, 6);
+            } else {
+                uint8_t response_payload[2] = {sub_id, status};
+                factory_test_create_response_frame(&response, MSG_ID_ADDITIONAL_TEST,
+                                                   response_payload, 2);
+            }
+        } break;
+
+        default: {
+            elog_w(TAG, "Unknown additional test sub-ID: 0x%02X", sub_id);
+            uint8_t response_payload[2] = {sub_id, DEVICE_ERR_INVALID_SUB_ID};
+            factory_test_create_response_frame(&response, MSG_ID_ADDITIONAL_TEST,
+                                               response_payload, 2);
+        } break;
+    }
+
     factory_test_send_response(&response);
+    elog_d(TAG, "Additional test response sent, sub_id=0x%02X, status=%d",
+           sub_id, status);
 }
 
 /* GPIO Control Functions --------------------------------------------------- */
@@ -1347,6 +1459,156 @@ static device_status_t io64_read_level(uint64_t* levels) {
     return DEVICE_OK;
 }
 
+/* SN management functions implementation ----------------------------------- */
+
+/**
+ * @brief  Erase Flash sector for SN storage
+ * @retval HAL_OK if successful, HAL_ERROR otherwise
+ */
+static HAL_StatusTypeDef flash_erase_sn_sector(void) {
+    FLASH_EraseInitTypeDef erase_init;
+    uint32_t sector_error = 0;
+    HAL_StatusTypeDef status;
+
+    // 解锁Flash
+    status = HAL_FLASH_Unlock();
+    if (status != HAL_OK) {
+        return status;
+    }
+
+    // 配置擦除参数
+    erase_init.TypeErase = FLASH_TYPEERASE_SECTORS;
+    erase_init.VoltageRange = FLASH_VOLTAGE_RANGE_3;  // 2.7V-3.6V
+    erase_init.Sector = SN_FLASH_SECTOR;
+    erase_init.NbSectors = 1;
+
+    // 执行擦除
+    status = HAL_FLASHEx_Erase(&erase_init, &sector_error);
+    
+    // 锁定Flash
+    HAL_FLASH_Lock();
+
+    return status;
+}
+
+/**
+ * @brief  Write SN data to Flash
+ * @param  sn_storage: Pointer to SN storage structure
+ * @retval HAL_OK if successful, HAL_ERROR otherwise
+ */
+static HAL_StatusTypeDef flash_write_sn_data(const sn_storage_t* sn_storage) {
+    HAL_StatusTypeDef status;
+    uint32_t* src_ptr = (uint32_t*)sn_storage;
+    uint32_t flash_addr = SN_FLASH_ADDRESS;
+    uint32_t data_size = sizeof(sn_storage_t);
+    uint32_t word_count = (data_size + 3) / 4;  // 向上取整到32位字
+
+    // 解锁Flash
+    status = HAL_FLASH_Unlock();
+    if (status != HAL_OK) {
+        return status;
+    }
+
+    // 按32位字写入数据
+    for (uint32_t i = 0; i < word_count; i++) {
+        status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, flash_addr + (i * 4), src_ptr[i]);
+        if (status != HAL_OK) {
+            HAL_FLASH_Lock();
+            return status;
+        }
+    }
+
+    // 锁定Flash
+    HAL_FLASH_Lock();
+    return HAL_OK;
+}
+
+/**
+ * @brief  Read SN data from Flash
+ * @retval Pointer to SN storage structure in Flash
+ */
+static const sn_storage_t* get_sn_storage_ptr(void) {
+    return (const sn_storage_t*)SN_FLASH_ADDRESS;
+}
+
+/**
+ * @brief  Write SN code to Flash
+ * @param  sn_data: Pointer to SN data
+ * @param  sn_length: Length of SN data
+ * @retval Device status
+ */
+device_status_t factory_test_write_sn(const uint8_t* sn_data, uint8_t sn_length) {
+    if (sn_data == NULL || sn_length == 0 || sn_length > SN_MAX_LENGTH) {
+        return DEVICE_ERR_EXECUTION;
+    }
+
+    sn_storage_t sn_storage = {0};
+    
+    // 准备SN存储结构
+    sn_storage.magic = SN_MAGIC_NUMBER;
+    sn_storage.sn_length = sn_length;
+    memcpy(sn_storage.sn_data, sn_data, sn_length);
+
+    // 擦除Flash扇区
+    if (flash_erase_sn_sector() != HAL_OK) {
+        elog_e(TAG, "Failed to erase SN Flash sector");
+        return DEVICE_ERR_EXECUTION;
+    }
+
+    // 写入SN数据
+    if (flash_write_sn_data(&sn_storage) != HAL_OK) {
+        elog_e(TAG, "Failed to write SN data to Flash");
+        return DEVICE_ERR_EXECUTION;
+    }
+
+    // 验证写入结果
+    const sn_storage_t* stored_sn = get_sn_storage_ptr();
+    if (stored_sn->magic != SN_MAGIC_NUMBER || 
+        stored_sn->sn_length != sn_length ||
+        memcmp(stored_sn->sn_data, sn_data, sn_length) != 0) {
+        elog_e(TAG, "SN data verification failed");
+        return DEVICE_ERR_EXECUTION;
+    }
+
+    elog_i(TAG, "SN written successfully, length=%d", sn_length);
+    return DEVICE_OK;
+}
+
+/**
+ * @brief  Read SN code from Flash
+ * @param  sn_data: Buffer to store SN data
+ * @param  sn_length: Pointer to store SN length
+ * @retval Device status
+ */
+device_status_t factory_test_read_sn(uint8_t* sn_data, uint8_t* sn_length) {
+    if (sn_data == NULL || sn_length == NULL) {
+        return DEVICE_ERR_EXECUTION;
+    }
+
+    const sn_storage_t* stored_sn = get_sn_storage_ptr();
+
+    // 检查魔数
+    if (stored_sn->magic != SN_MAGIC_NUMBER) {
+        elog_w(TAG, "SN magic number not found, SN not programmed");
+        *sn_length = 0;
+        return DEVICE_ERR_EXECUTION;
+    }
+
+    // 检查SN长度有效性
+    if (stored_sn->sn_length == 0 || stored_sn->sn_length > SN_MAX_LENGTH) {
+        elog_w(TAG, "Invalid SN length: %d", stored_sn->sn_length);
+        *sn_length = 0;
+        return DEVICE_ERR_EXECUTION;
+    }
+
+    // 复制SN数据
+    *sn_length = stored_sn->sn_length;
+    memcpy(sn_data, stored_sn->sn_data, stored_sn->sn_length);
+
+    elog_d(TAG, "SN read successfully, length=%d", *sn_length);
+    return DEVICE_OK;
+}
+
 /* DIP switch control functions implementation ------------------------------ */
 
 /**
@@ -1371,5 +1633,89 @@ static device_status_t dip_read_level(uint8_t* levels) {
     }
 
     elog_d(TAG, "DIP switch levels read: levels=0x%02X", *levels);
+    return DEVICE_OK;
+}
+
+/* Additional test functions implementation --------------------------------- */
+
+/**
+ * @brief  Perform UART loopback test
+ * @retval Device status
+ */
+device_status_t factory_test_uart_loopback(void) {
+    uint8_t tx_buffer[] = UART_LOOPBACK_TEST_STRING;
+    uint8_t rx_buffer[sizeof(UART_LOOPBACK_TEST_STRING)] = {0};
+    uint32_t tx_len = strlen(UART_LOOPBACK_TEST_STRING);
+    HAL_StatusTypeDef status;
+    
+    elog_d(TAG, "Starting UART loopback test");
+
+    // // 清空接收缓冲区
+    // memset(rx_buffer, 0, sizeof(rx_buffer));
+
+    // // 发送测试字符串
+    // status = HAL_UART_Transmit(&huart1, tx_buffer, tx_len, UART_LOOPBACK_TIMEOUT);
+    // if (status != HAL_OK) {
+    //     elog_e(TAG, "UART transmit failed: %d", status);
+    //     return DEVICE_ERR_EXECUTION;
+    // }
+
+    // // 接收字符串
+    // status = HAL_UART_Receive(&huart1, rx_buffer, tx_len, UART_LOOPBACK_TIMEOUT);
+    // if (status != HAL_OK) {
+    //     elog_e(TAG, "UART receive failed: %d", status);
+    //     return DEVICE_ERR_EXECUTION;
+    // }
+
+    // // 比较发送和接收的数据
+    // if (memcmp(tx_buffer, rx_buffer, tx_len) != 0) {
+    //     elog_e(TAG, "UART loopback test failed - data mismatch");
+    //     elog_e(TAG, "TX: %s", tx_buffer);
+    //     elog_e(TAG, "RX: %s", rx_buffer);
+    //     return DEVICE_ERR_EXECUTION;
+    // }
+
+    elog_i(TAG, "UART loopback test passed");
+    return DEVICE_OK;
+}
+
+/**
+ * @brief  Read device UID
+ * @param  uid_data: Buffer to store UID data (12 bytes)
+ * @retval Device status
+ */
+device_status_t factory_test_read_device_uid(uint8_t* uid_data) {
+    if (uid_data == NULL) {
+        return DEVICE_ERR_EXECUTION;
+    }
+
+    // 读取96位(12字节)设备UID
+    uint32_t* uid_words = (uint32_t*)uid_data;
+    
+    // UID存储在3个32位寄存器中
+    uid_words[0] = HAL_GetUIDw0();  // UID[31:0]
+    uid_words[1] = HAL_GetUIDw1();  // UID[63:32]
+    uid_words[2] = HAL_GetUIDw2();  // UID[95:64]
+
+    elog_d(TAG, "Device UID: %08X%08X%08X", uid_words[2], uid_words[1], uid_words[0]);
+    return DEVICE_OK;
+}
+
+/**
+ * @brief  Read firmware version
+ * @param  version_data: Buffer to store version data (3 bytes: major, minor, patch)
+ * @retval Device status
+ */
+device_status_t factory_test_read_firmware_version(uint8_t* version_data) {
+    if (version_data == NULL) {
+        return DEVICE_ERR_EXECUTION;
+    }
+
+    // 从编译时定义的宏中获取版本信息
+    version_data[0] = (uint8_t)FIRMWARE_VERSION_MAJOR;
+    version_data[1] = (uint8_t)FIRMWARE_VERSION_MINOR;
+    version_data[2] = (uint8_t)FIRMWARE_VERSION_PATCH;
+
+    elog_d(TAG, "Firmware version: %d.%d.%d", version_data[0], version_data[1], version_data[2]);
     return DEVICE_OK;
 }

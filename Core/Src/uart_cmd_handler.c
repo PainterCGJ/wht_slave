@@ -116,9 +116,9 @@ void uart_cmd_handler_task(void* argument) {
     for (;;) {
         // 处理工厂测试协议（如果启用）
         factory_test_task_process();
-        
+
         // 100ms周期处理，避免过度占用CPU
-        osDelay(100);
+        osDelay(10);
     }
 }
 

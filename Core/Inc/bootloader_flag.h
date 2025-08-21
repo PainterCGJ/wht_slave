@@ -31,7 +31,7 @@ extern "C" {
 // STM32F429 Flash扇区布局 (最后几个扇区):
 // Sector 21: 0x081A0000-0x081BFFFF (128KB)
 // Sector 22: 0x081C0000-0x081DFFFF (128KB)  
-// Sector 23: 0x081E0000-0x081FFFFF (128KB) <- 用于标志位存储
+// Sector 23: 0x081E0000-0x081FFFFF (128KB) <- 用于bootloader升级标志位存储
 // 使用Flash Sector 23的末尾存储bootloader标志位
 #define BOOTLOADER_FLAG_SECTOR      23                    // Flash扇区23
 #define BOOTLOADER_FLAG_ADDRESS     0x081FFF00UL          // 扇区23末尾预留256字节用于标志位
