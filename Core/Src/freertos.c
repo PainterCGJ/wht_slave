@@ -159,9 +159,6 @@ void StartDefaultTask(void *argument)
   /* USER CODE BEGIN StartDefaultTask */
     osDelay(50);  // 等待系统稳定
     
-    // printf("System startup completed, checking for factory test entry command...\r\n");
-    // printf("Waiting for factory test entry command (55 AA 01 02 21 00 00 48 72 BB 66) within 1 second...\r\n");
-    
     // 阻塞式检测工厂测试入口指令（1秒）
     if (factory_test_blocking_check_entry()) {
         // 进入工厂测试模式

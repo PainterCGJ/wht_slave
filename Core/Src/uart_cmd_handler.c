@@ -80,9 +80,6 @@ void uart_cmd_handler_init(void) {
     memset(uart_cmd_buffer, 0, sizeof(uart_cmd_buffer));
     uart_cmd_index = 0;
 
-    // 初始化工厂测试模式
-    factory_test_init();
-
     // 创建UART命令处理任务
     uartCmdTaskHandle =
         osThreadNew(uart_cmd_handler_task, NULL, &uartCmdTask_attributes);
@@ -108,11 +105,6 @@ void uart_cmd_handler_task(void* argument) {
     printf("UART command handler task started\r\n");
 
     for (;;) {
-        // 如果工厂测试模式启用，处理工厂测试协议
-        if (factory_test_is_enabled()) {
-            factory_test_task_process();
-        }
-
         // 定期检查，避免过度占用CPU
         osDelay(100);
     }

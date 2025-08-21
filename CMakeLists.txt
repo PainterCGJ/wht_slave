@@ -48,6 +48,7 @@ add_subdirectory(User)
 add_subdirectory(easylogger)
 add_subdirectory(FreeRTOScpp)
 add_subdirectory(protocol)
+add_subdirectory(factory_test)
 
 # Link directories setup
 target_link_directories(
