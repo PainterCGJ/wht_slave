@@ -136,16 +136,17 @@ static bool ring_buffer_get(uint8_t* data);
 static uint16_t ring_buffer_available(void);
 static void ring_buffer_reset(void);
 
-/* Special IO control functions */
-static device_status_t special_io_set_mode(uint8_t target_id, uint64_t pin_mask,
-                                           uint8_t mode);
-static device_status_t special_io_set_pull(uint8_t target_id, uint64_t pin_mask,
-                                           uint8_t pull);
-static device_status_t special_io_write_level(uint8_t target_id,
-                                              uint64_t pin_mask, uint8_t level);
-static device_status_t special_io_read_level(uint8_t target_id,
-                                             uint64_t* levels);
-static void enable_gpio_clocks_for_special_io(uint8_t target_id);
+/* 64-way IO control functions */
+static device_status_t io64_set_mode(uint64_t pin_mask, uint8_t mode);
+static device_status_t io64_set_pull(uint64_t pin_mask, uint8_t pull);
+static device_status_t io64_write_level(uint64_t pin_mask, uint8_t level);
+static device_status_t io64_read_level(uint64_t* levels);
+
+/* DIP switch control functions */
+static device_status_t dip_set_mode(uint8_t pin_mask, uint8_t mode);
+static device_status_t dip_set_pull(uint8_t pin_mask, uint8_t pull);
+static device_status_t dip_write_level(uint8_t pin_mask, uint8_t level);
+static device_status_t dip_read_level(uint8_t* levels);
 
 /* GPIO configuration helper functions */
 static uint32_t get_gpio_pin_mode(GPIO_TypeDef* port, uint16_t pin);
@@ -560,7 +561,8 @@ void factory_test_handle_64way_io_control(const factory_test_frame_t* frame) {
 
     switch (sub_id) {
         case 0x01:    // Set mode
-            if (frame->payload_len >= 10) {    // Sub-ID(1) + Pin-Mask(8) + Value(1) = 10
+            if (frame->payload_len >=
+                10) {    // Sub-ID(1) + Pin-Mask(8) + Value(1) = 10
                 uint64_t pin_mask = 0;
                 // 64-way IO - 8 bytes mask (little endian)
                 for (int i = 0; i < 8; i++) {
@@ -568,7 +570,7 @@ void factory_test_handle_64way_io_control(const factory_test_frame_t* frame) {
                 }
                 uint8_t value = frame->payload[9];
 
-                status = special_io_set_mode(0x01, pin_mask, value);
+                status = io64_set_mode(pin_mask, value);
                 uint8_t response_payload[2] = {sub_id, status};
                 factory_test_create_response_frame(
                     &response, MSG_ID_64WAY_IO_CONTROL, response_payload, 2);
@@ -587,7 +589,7 @@ void factory_test_handle_64way_io_control(const factory_test_frame_t* frame) {
                 }
                 uint8_t value = frame->payload[9];
 
-                status = special_io_set_pull(0x01, pin_mask, value);
+                status = io64_set_pull(pin_mask, value);
                 uint8_t response_payload[2] = {sub_id, status};
                 factory_test_create_response_frame(
                     &response, MSG_ID_64WAY_IO_CONTROL, response_payload, 2);
@@ -606,7 +608,7 @@ void factory_test_handle_64way_io_control(const factory_test_frame_t* frame) {
                 }
                 uint8_t value = frame->payload[9];
 
-                status = special_io_write_level(0x01, pin_mask, value);
+                status = io64_write_level(pin_mask, value);
                 uint8_t response_payload[2] = {sub_id, status};
                 factory_test_create_response_frame(
                     &response, MSG_ID_64WAY_IO_CONTROL, response_payload, 2);
@@ -620,7 +622,7 @@ void factory_test_handle_64way_io_control(const factory_test_frame_t* frame) {
         case 0x04:    // Read level
         {
             uint64_t levels = 0;
-            status = special_io_read_level(0x01, &levels);
+            status = io64_read_level(&levels);
 
             if (status == DEVICE_OK) {
                 // 64-way IO response: Sub-ID(1) + Status(1) + Levels(8)
@@ -670,11 +672,12 @@ void factory_test_handle_dip_switch_control(const factory_test_frame_t* frame) {
 
     switch (sub_id) {
         case 0x01:    // Set mode
-            if (frame->payload_len >= 3) {    // Sub-ID(1) + Pin-Mask(1) + Value(1) = 3
+            if (frame->payload_len >=
+                3) {    // Sub-ID(1) + Pin-Mask(1) + Value(1) = 3
                 uint8_t pin_mask = frame->payload[1];
                 uint8_t value = frame->payload[2];
 
-                status = special_io_set_mode(0x02, pin_mask, value);
+                status = dip_set_mode(pin_mask, value);
                 uint8_t response_payload[2] = {sub_id, status};
                 factory_test_create_response_frame(
                     &response, MSG_ID_DIP_SWITCH_CONTROL, response_payload, 2);
@@ -690,7 +693,7 @@ void factory_test_handle_dip_switch_control(const factory_test_frame_t* frame) {
                 uint8_t pin_mask = frame->payload[1];
                 uint8_t value = frame->payload[2];
 
-                status = special_io_set_pull(0x02, pin_mask, value);
+                status = dip_set_pull(pin_mask, value);
                 uint8_t response_payload[2] = {sub_id, status};
                 factory_test_create_response_frame(
                     &response, MSG_ID_DIP_SWITCH_CONTROL, response_payload, 2);
@@ -706,7 +709,7 @@ void factory_test_handle_dip_switch_control(const factory_test_frame_t* frame) {
                 uint8_t pin_mask = frame->payload[1];
                 uint8_t value = frame->payload[2];
 
-                status = special_io_write_level(0x02, pin_mask, value);
+                status = dip_write_level(pin_mask, value);
                 uint8_t response_payload[2] = {sub_id, status};
                 factory_test_create_response_frame(
                     &response, MSG_ID_DIP_SWITCH_CONTROL, response_payload, 2);
@@ -719,15 +722,15 @@ void factory_test_handle_dip_switch_control(const factory_test_frame_t* frame) {
 
         case 0x04:    // Read level
         {
-            uint64_t levels = 0;
-            status = special_io_read_level(0x02, &levels);
+            uint8_t levels = 0;
+            status = dip_read_level(&levels);
 
             if (status == DEVICE_OK) {
                 // DIP switch response: Sub-ID(1) + Status(1) + Levels(1)
                 uint8_t response_payload[3];
                 response_payload[0] = sub_id;
                 response_payload[1] = status;
-                response_payload[2] = levels & 0xFF;
+                response_payload[2] = levels;
                 factory_test_create_response_frame(
                     &response, MSG_ID_DIP_SWITCH_CONTROL, response_payload, 3);
             } else {
@@ -817,7 +820,7 @@ device_status_t factory_test_gpio_set_mode(uint8_t port_id, uint16_t pin_mask,
     }
 
     uint32_t gpio_mode;
-    
+
     // Set mode
     switch (mode) {
         case FACTORY_GPIO_MODE_INPUT:
@@ -837,7 +840,7 @@ device_status_t factory_test_gpio_set_mode(uint8_t port_id, uint16_t pin_mask,
     for (uint8_t pin_num = 0; pin_num < 16; pin_num++) {
         if (pin_mask & (1 << pin_num)) {
             uint16_t current_pin = (1 << pin_num);
-            
+
             GPIO_InitTypeDef gpio_init = {0};
             gpio_init.Pin = current_pin;
             gpio_init.Mode = gpio_mode;
@@ -903,7 +906,7 @@ device_status_t factory_test_gpio_set_pull(uint8_t port_id, uint16_t pin_mask,
     }
 
     uint32_t gpio_pull;
-    
+
     switch (pull) {
         case GPIO_PULL_DOWN:
             gpio_pull = GPIO_PULLDOWN;
@@ -922,7 +925,7 @@ device_status_t factory_test_gpio_set_pull(uint8_t port_id, uint16_t pin_mask,
     for (uint8_t pin_num = 0; pin_num < 16; pin_num++) {
         if (pin_mask & (1 << pin_num)) {
             uint16_t current_pin = (1 << pin_num);
-            
+
             GPIO_InitTypeDef gpio_init = {0};
             gpio_init.Pin = current_pin;
             // Preserve existing mode configuration for this specific pin
@@ -1183,239 +1186,6 @@ static void ring_buffer_reset(void) {
     ring_tail = 0;
 }
 
-/* Special IO control functions implementation -------------------------------
- */
-
-/**
- * @brief  Enable GPIO clocks for special IO targets
- * @param  target_id: Target ID (1=64-way IO, 2=DIP switches)
- * @retval None
- */
-static void enable_gpio_clocks_for_special_io(uint8_t target_id) {
-    // already enabled in main.c
-}
-
-/**
- * @brief  Set special IO pin mode
- * @param  target_id: Target ID (1=64-way IO, 2=DIP switches)
- * @param  pin_mask: Pin mask
- * @param  mode: GPIO mode
- * @retval Device status
- */
-static device_status_t special_io_set_mode(uint8_t target_id, uint64_t pin_mask,
-                                           uint8_t mode) {
-    if (target_id != 0x01 && target_id != 0x02) {
-        return DEVICE_ERR_INVALID_PORT;
-    }
-
-    if (pin_mask == 0) {
-        return DEVICE_ERR_INVALID_PIN;
-    }
-
-    enable_gpio_clocks_for_special_io(target_id);
-
-    uint32_t gpio_mode;
-    switch (mode) {
-        case FACTORY_GPIO_MODE_INPUT:
-            gpio_mode = GPIO_MODE_INPUT;
-            break;
-        case FACTORY_GPIO_MODE_OUTPUT:
-            gpio_mode = GPIO_MODE_OUTPUT_PP;
-            break;
-        case FACTORY_GPIO_MODE_ANALOG:
-            gpio_mode = GPIO_MODE_ANALOG;
-            break;
-        default:
-            return DEVICE_ERR_EXECUTION;
-    }
-
-    const gpio_pin_map_t* pin_map;
-    uint8_t pin_count;
-
-    if (target_id == 0x01) {
-        pin_map = io_pin_map;
-        pin_count = 64;
-    } else {
-        pin_map = dip_pin_map;
-        pin_count = 8;
-    }
-
-    // Configure each selected pin
-    for (uint8_t i = 0; i < pin_count; i++) {
-        if (pin_mask & (1ULL << i)) {
-            GPIO_InitTypeDef gpio_init = {0};
-            gpio_init.Pin = pin_map[i].pin;
-            gpio_init.Mode = gpio_mode;
-            // Preserve existing pull configuration
-            gpio_init.Pull = get_gpio_pin_pull(pin_map[i].port, pin_map[i].pin);
-            gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
-
-            HAL_GPIO_Init(pin_map[i].port, &gpio_init);
-        }
-    }
-
-    elog_d(TAG, "Special IO mode set: target=%d, mask=0x%016X, mode=%d",
-           target_id, pin_mask, mode);
-    return DEVICE_OK;
-}
-
-/**
- * @brief  Set special IO pin pull configuration
- * @param  target_id: Target ID
- * @param  pin_mask: Pin mask
- * @param  pull: Pull configuration
- * @retval Device status
- */
-static device_status_t special_io_set_pull(uint8_t target_id, uint64_t pin_mask,
-                                           uint8_t pull) {
-    if (target_id != 0x01 && target_id != 0x02) {
-        return DEVICE_ERR_INVALID_PORT;
-    }
-
-    if (pin_mask == 0) {
-        return DEVICE_ERR_INVALID_PIN;
-    }
-
-    enable_gpio_clocks_for_special_io(target_id);
-
-    uint32_t gpio_pull;
-    switch (pull) {
-        case GPIO_PULL_DOWN:
-            gpio_pull = GPIO_PULLDOWN;
-            break;
-        case GPIO_PULL_UP:
-            gpio_pull = GPIO_PULLUP;
-            break;
-        case GPIO_PULL_NONE:
-            gpio_pull = GPIO_NOPULL;
-            break;
-        default:
-            return DEVICE_ERR_EXECUTION;
-    }
-
-    const gpio_pin_map_t* pin_map;
-    uint8_t pin_count;
-
-    if (target_id == 0x01) {
-        pin_map = io_pin_map;
-        pin_count = 64;
-    } else {
-        pin_map = dip_pin_map;
-        pin_count = 8;
-    }
-
-    // Configure each selected pin
-    for (uint8_t i = 0; i < pin_count; i++) {
-        if (pin_mask & (1ULL << i)) {
-            GPIO_InitTypeDef gpio_init = {0};
-            gpio_init.Pin = pin_map[i].pin;
-            // Preserve existing mode configuration
-            gpio_init.Mode = get_gpio_pin_mode(pin_map[i].port, pin_map[i].pin);
-            gpio_init.Pull = gpio_pull;
-            gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
-
-            HAL_GPIO_Init(pin_map[i].port, &gpio_init);
-        }
-    }
-
-    elog_d(TAG, "Special IO pull set: target=%d, mask=0x%016X, pull=%d",
-           target_id, pin_mask, pull);
-    return DEVICE_OK;
-}
-
-/**
- * @brief  Write special IO pin levels
- * @param  target_id: Target ID
- * @param  pin_mask: Pin mask
- * @param  level: Level to write
- * @retval Device status
- */
-static device_status_t special_io_write_level(uint8_t target_id,
-                                              uint64_t pin_mask,
-                                              uint8_t level) {
-    if (target_id != 0x01 && target_id != 0x02) {
-        return DEVICE_ERR_INVALID_PORT;
-    }
-
-    if (pin_mask == 0) {
-        return DEVICE_ERR_INVALID_PIN;
-    }
-
-    GPIO_PinState pin_state;
-    if (level == GPIO_LEVEL_HIGH) {
-        pin_state = GPIO_PIN_SET;
-    } else if (level == GPIO_LEVEL_LOW) {
-        pin_state = GPIO_PIN_RESET;
-    } else {
-        return DEVICE_ERR_EXECUTION;
-    }
-
-    const gpio_pin_map_t* pin_map;
-    uint8_t pin_count;
-
-    if (target_id == 0x01) {
-        pin_map = io_pin_map;
-        pin_count = 64;
-    } else {
-        pin_map = dip_pin_map;
-        pin_count = 8;
-    }
-
-    // Write level to each selected pin
-    for (uint8_t i = 0; i < pin_count; i++) {
-        if (pin_mask & (1ULL << i)) {
-            HAL_GPIO_WritePin(pin_map[i].port, pin_map[i].pin, pin_state);
-        }
-    }
-
-    elog_d(TAG, "Special IO level written: target=%d, mask=0x%016X, level=%d",
-           target_id, pin_mask, level);
-    return DEVICE_OK;
-}
-
-/**
- * @brief  Read special IO pin levels
- * @param  target_id: Target ID
- * @param  levels: Pointer to store read levels
- * @retval Device status
- */
-static device_status_t special_io_read_level(uint8_t target_id,
-                                             uint64_t* levels) {
-    if (target_id != 0x01 && target_id != 0x02) {
-        return DEVICE_ERR_INVALID_PORT;
-    }
-
-    if (levels == NULL) {
-        return DEVICE_ERR_EXECUTION;
-    }
-
-    const gpio_pin_map_t* pin_map;
-    uint8_t pin_count;
-
-    if (target_id == 0x01) {
-        pin_map = io_pin_map;
-        pin_count = 64;
-    } else {
-        pin_map = dip_pin_map;
-        pin_count = 8;
-    }
-
-    *levels = 0;
-
-    // Read level from each pin
-    for (uint8_t i = 0; i < pin_count; i++) {
-        GPIO_PinState pin_state =
-            HAL_GPIO_ReadPin(pin_map[i].port, pin_map[i].pin);
-        if (pin_state == GPIO_PIN_SET) {
-            *levels |= (1ULL << i);
-        }
-    }
-
-    elog_d(TAG, "Special IO levels read: target=%d, levels=0x%016llX",
-           target_id, *levels);
-    return DEVICE_OK;
-}
-
 /* GPIO configuration helper functions implementation ----------------------- */
 
 /**
@@ -1432,16 +1202,21 @@ static uint32_t get_gpio_pin_mode(GPIO_TypeDef* port, uint16_t pin) {
         temp_pin >>= 1;
         pin_pos++;
     }
-    
+
     // Read mode from MODER register (2 bits per pin)
     uint32_t mode_bits = (port->MODER >> (pin_pos * 2)) & 0x03;
-    
+
     switch (mode_bits) {
-        case 0x00: return GPIO_MODE_INPUT;
-        case 0x01: return GPIO_MODE_OUTPUT_PP;
-        case 0x02: return GPIO_MODE_AF_PP;
-        case 0x03: return GPIO_MODE_ANALOG;
-        default: return GPIO_MODE_INPUT;
+        case 0x00:
+            return GPIO_MODE_INPUT;
+        case 0x01:
+            return GPIO_MODE_OUTPUT_PP;
+        case 0x02:
+            return GPIO_MODE_AF_PP;
+        case 0x03:
+            return GPIO_MODE_ANALOG;
+        default:
+            return GPIO_MODE_INPUT;
     }
 }
 
@@ -1459,14 +1234,317 @@ static uint32_t get_gpio_pin_pull(GPIO_TypeDef* port, uint16_t pin) {
         temp_pin >>= 1;
         pin_pos++;
     }
-    
+
     // Read pull from PUPDR register (2 bits per pin)
     uint32_t pull_bits = (port->PUPDR >> (pin_pos * 2)) & 0x03;
-    
+
     switch (pull_bits) {
-        case 0x00: return GPIO_NOPULL;
-        case 0x01: return GPIO_PULLUP;
-        case 0x02: return GPIO_PULLDOWN;
-        default: return GPIO_NOPULL;
+        case 0x00:
+            return GPIO_NOPULL;
+        case 0x01:
+            return GPIO_PULLUP;
+        case 0x02:
+            return GPIO_PULLDOWN;
+        default:
+            return GPIO_NOPULL;
     }
+}
+
+/* 64-way IO control functions implementation ------------------------------- */
+
+/**
+ * @brief  Set 64-way IO pin mode
+ * @param  pin_mask: Pin mask (64-bit)
+ * @param  mode: GPIO mode
+ * @retval Device status
+ */
+static device_status_t io64_set_mode(uint64_t pin_mask, uint8_t mode) {
+    if (pin_mask == 0) {
+        return DEVICE_ERR_INVALID_PIN;
+    }
+
+    uint32_t gpio_mode;
+    switch (mode) {
+        case FACTORY_GPIO_MODE_INPUT:
+            gpio_mode = GPIO_MODE_INPUT;
+            break;
+        case FACTORY_GPIO_MODE_OUTPUT:
+            gpio_mode = GPIO_MODE_OUTPUT_PP;
+            break;
+        case FACTORY_GPIO_MODE_ANALOG:
+            gpio_mode = GPIO_MODE_ANALOG;
+            break;
+        default:
+            return DEVICE_ERR_EXECUTION;
+    }
+
+    // Configure each selected pin
+    for (uint8_t i = 0; i < 64; i++) {
+        if (pin_mask & (1ULL << i)) {
+            GPIO_InitTypeDef gpio_init = {0};
+            gpio_init.Pin = io_pin_map[i].pin;
+            gpio_init.Mode = gpio_mode;
+            // Preserve existing pull configuration
+            gpio_init.Pull =
+                get_gpio_pin_pull(io_pin_map[i].port, io_pin_map[i].pin);
+            gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
+
+            HAL_GPIO_Init(io_pin_map[i].port, &gpio_init);
+        }
+    }
+
+    elog_d(TAG, "64-way IO mode set: mask=0x%016llX, mode=%d", pin_mask, mode);
+    return DEVICE_OK;
+}
+
+/**
+ * @brief  Set 64-way IO pin pull configuration
+ * @param  pin_mask: Pin mask (64-bit)
+ * @param  pull: Pull configuration
+ * @retval Device status
+ */
+static device_status_t io64_set_pull(uint64_t pin_mask, uint8_t pull) {
+    if (pin_mask == 0) {
+        return DEVICE_ERR_INVALID_PIN;
+    }
+
+    uint32_t gpio_pull;
+    switch (pull) {
+        case GPIO_PULL_DOWN:
+            gpio_pull = GPIO_PULLDOWN;
+            break;
+        case GPIO_PULL_UP:
+            gpio_pull = GPIO_PULLUP;
+            break;
+        case GPIO_PULL_NONE:
+            gpio_pull = GPIO_NOPULL;
+            break;
+        default:
+            return DEVICE_ERR_EXECUTION;
+    }
+
+    // Configure each selected pin
+    for (uint8_t i = 0; i < 64; i++) {
+        if (pin_mask & (1ULL << i)) {
+            GPIO_InitTypeDef gpio_init = {0};
+            gpio_init.Pin = io_pin_map[i].pin;
+            // Preserve existing mode configuration
+            gpio_init.Mode =
+                get_gpio_pin_mode(io_pin_map[i].port, io_pin_map[i].pin);
+            gpio_init.Pull = gpio_pull;
+            gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
+
+            HAL_GPIO_Init(io_pin_map[i].port, &gpio_init);
+        }
+    }
+
+    elog_d(TAG, "64-way IO pull set: mask=0x%016llX, pull=%d", pin_mask, pull);
+    return DEVICE_OK;
+}
+
+/**
+ * @brief  Write 64-way IO pin levels
+ * @param  pin_mask: Pin mask (64-bit)
+ * @param  level: Level to write
+ * @retval Device status
+ */
+static device_status_t io64_write_level(uint64_t pin_mask, uint8_t level) {
+    if (pin_mask == 0) {
+        return DEVICE_ERR_INVALID_PIN;
+    }
+
+    GPIO_PinState pin_state;
+    if (level == GPIO_LEVEL_HIGH) {
+        pin_state = GPIO_PIN_SET;
+    } else if (level == GPIO_LEVEL_LOW) {
+        pin_state = GPIO_PIN_RESET;
+    } else {
+        return DEVICE_ERR_EXECUTION;
+    }
+
+    // Write level to each selected pin
+    for (uint8_t i = 0; i < 64; i++) {
+        if (pin_mask & (1ULL << i)) {
+            HAL_GPIO_WritePin(io_pin_map[i].port, io_pin_map[i].pin, pin_state);
+        }
+    }
+
+    elog_d(TAG, "64-way IO level written: mask=0x%016llX, level=%d", pin_mask,
+           level);
+    return DEVICE_OK;
+}
+
+/**
+ * @brief  Read 64-way IO pin levels
+ * @param  levels: Pointer to store read levels (64-bit)
+ * @retval Device status
+ */
+static device_status_t io64_read_level(uint64_t* levels) {
+    if (levels == NULL) {
+        return DEVICE_ERR_EXECUTION;
+    }
+
+    *levels = 0;
+
+    // Read level from each pin
+    for (uint8_t i = 0; i < 64; i++) {
+        GPIO_PinState pin_state =
+            HAL_GPIO_ReadPin(io_pin_map[i].port, io_pin_map[i].pin);
+        if (pin_state == GPIO_PIN_SET) {
+            *levels |= (1ULL << i);
+        }
+    }
+
+    elog_d(TAG, "64-way IO levels read: levels=0x%016llX", *levels);
+    return DEVICE_OK;
+}
+
+/* DIP switch control functions implementation ------------------------------ */
+
+/**
+ * @brief  Set DIP switch pin mode
+ * @param  pin_mask: Pin mask (8-bit)
+ * @param  mode: GPIO mode
+ * @retval Device status
+ */
+static device_status_t dip_set_mode(uint8_t pin_mask, uint8_t mode) {
+    if (pin_mask == 0) {
+        return DEVICE_ERR_INVALID_PIN;
+    }
+
+    uint32_t gpio_mode;
+    switch (mode) {
+        case FACTORY_GPIO_MODE_INPUT:
+            gpio_mode = GPIO_MODE_INPUT;
+            break;
+        case FACTORY_GPIO_MODE_OUTPUT:
+            gpio_mode = GPIO_MODE_OUTPUT_PP;
+            break;
+        case FACTORY_GPIO_MODE_ANALOG:
+            gpio_mode = GPIO_MODE_ANALOG;
+            break;
+        default:
+            return DEVICE_ERR_EXECUTION;
+    }
+
+    // Configure each selected pin
+    for (uint8_t i = 0; i < 8; i++) {
+        if (pin_mask & (1 << i)) {
+            GPIO_InitTypeDef gpio_init = {0};
+            gpio_init.Pin = dip_pin_map[i].pin;
+            gpio_init.Mode = gpio_mode;
+            // Preserve existing pull configuration
+            gpio_init.Pull =
+                get_gpio_pin_pull(dip_pin_map[i].port, dip_pin_map[i].pin);
+            gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
+
+            HAL_GPIO_Init(dip_pin_map[i].port, &gpio_init);
+        }
+    }
+
+    elog_d(TAG, "DIP switch mode set: mask=0x%02X, mode=%d", pin_mask, mode);
+    return DEVICE_OK;
+}
+
+/**
+ * @brief  Set DIP switch pin pull configuration
+ * @param  pin_mask: Pin mask (8-bit)
+ * @param  pull: Pull configuration
+ * @retval Device status
+ */
+static device_status_t dip_set_pull(uint8_t pin_mask, uint8_t pull) {
+    if (pin_mask == 0) {
+        return DEVICE_ERR_INVALID_PIN;
+    }
+
+    uint32_t gpio_pull;
+    switch (pull) {
+        case GPIO_PULL_DOWN:
+            gpio_pull = GPIO_PULLDOWN;
+            break;
+        case GPIO_PULL_UP:
+            gpio_pull = GPIO_PULLUP;
+            break;
+        case GPIO_PULL_NONE:
+            gpio_pull = GPIO_NOPULL;
+            break;
+        default:
+            return DEVICE_ERR_EXECUTION;
+    }
+
+    // Configure each selected pin
+    for (uint8_t i = 0; i < 8; i++) {
+        if (pin_mask & (1 << i)) {
+            GPIO_InitTypeDef gpio_init = {0};
+            gpio_init.Pin = dip_pin_map[i].pin;
+            // Preserve existing mode configuration
+            gpio_init.Mode =
+                get_gpio_pin_mode(dip_pin_map[i].port, dip_pin_map[i].pin);
+            gpio_init.Pull = gpio_pull;
+            gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
+
+            HAL_GPIO_Init(dip_pin_map[i].port, &gpio_init);
+        }
+    }
+
+    elog_d(TAG, "DIP switch pull set: mask=0x%02X, pull=%d", pin_mask, pull);
+    return DEVICE_OK;
+}
+
+/**
+ * @brief  Write DIP switch pin levels
+ * @param  pin_mask: Pin mask (8-bit)
+ * @param  level: Level to write
+ * @retval Device status
+ */
+static device_status_t dip_write_level(uint8_t pin_mask, uint8_t level) {
+    if (pin_mask == 0) {
+        return DEVICE_ERR_INVALID_PIN;
+    }
+
+    GPIO_PinState pin_state;
+    if (level == GPIO_LEVEL_HIGH) {
+        pin_state = GPIO_PIN_SET;
+    } else if (level == GPIO_LEVEL_LOW) {
+        pin_state = GPIO_PIN_RESET;
+    } else {
+        return DEVICE_ERR_EXECUTION;
+    }
+
+    // Write level to each selected pin
+    for (uint8_t i = 0; i < 8; i++) {
+        if (pin_mask & (1 << i)) {
+            HAL_GPIO_WritePin(dip_pin_map[i].port, dip_pin_map[i].pin,
+                              pin_state);
+        }
+    }
+
+    elog_d(TAG, "DIP switch level written: mask=0x%02X, level=%d", pin_mask,
+           level);
+    return DEVICE_OK;
+}
+
+/**
+ * @brief  Read DIP switch pin levels
+ * @param  levels: Pointer to store read levels (8-bit)
+ * @retval Device status
+ */
+static device_status_t dip_read_level(uint8_t* levels) {
+    if (levels == NULL) {
+        return DEVICE_ERR_EXECUTION;
+    }
+
+    *levels = 0;
+
+    // Read level from each pin
+    for (uint8_t i = 0; i < 8; i++) {
+        GPIO_PinState pin_state =
+            HAL_GPIO_ReadPin(dip_pin_map[i].port, dip_pin_map[i].pin);
+        if (pin_state == GPIO_PIN_SET) {
+            *levels |= (1 << i);
+        }
+    }
+
+    elog_d(TAG, "DIP switch levels read: levels=0x%02X", *levels);
+    return DEVICE_OK;
 }
