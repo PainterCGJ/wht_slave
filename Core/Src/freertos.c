@@ -30,6 +30,7 @@
 #include "elog.h"
 #include "gpio.h"
 #include "usart.h"
+#include "factory_test.h"
 
 /* USER CODE END Includes */
 
@@ -156,13 +157,32 @@ void MX_FREERTOS_Init(void) {
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN StartDefaultTask */
-    osDelay(50);
-    main_app();
-
-    /* Infinite loop */
-    for (;;) {
-        HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-        osDelay(500);
+    osDelay(50);  // 等待系统稳定
+    
+    // printf("System startup completed, checking for factory test entry command...\r\n");
+    // printf("Waiting for factory test entry command (55 AA 01 02 21 00 00 48 72 BB 66) within 1 second...\r\n");
+    
+    // 阻塞式检测工厂测试入口指令（1秒）
+    if (factory_test_blocking_check_entry()) {
+        // 进入工厂测试模式
+        printf("Factory test entry command detected, entering factory test mode\r\n");
+        factory_test_enter_mode();
+        
+        // 工厂测试模式下的主循环
+        for (;;) {
+            factory_test_task_process();
+            osDelay(10);
+        }
+    } else {
+        // 没有检测到工厂测试指令，进入正常应用程序
+        printf("No factory test command received, starting normal application\r\n");
+        main_app();
+        
+        // 正常应用程序完成后的循环
+        for (;;) {
+            HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+            osDelay(500);
+        }
     }
   /* USER CODE END StartDefaultTask */
 }

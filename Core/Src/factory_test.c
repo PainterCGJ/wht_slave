@@ -27,10 +27,22 @@
 #include "main.h"
 #include "usart.h"
 #include "stm32f4xx_hal_flash_ex.h"
+#include "cmsis_os.h"
 
 /* Private variables ---------------------------------------------------------*/
 static const char* TAG = "factory_test";
 static factory_test_state_t test_state = FACTORY_TEST_DISABLED;
+
+/* Factory test entry command definition */
+const uint8_t FACTORY_TEST_ENTRY_CMD[FACTORY_TEST_ENTRY_CMD_LEN] = {
+    0x55, 0xAA, 0x01, 0x02, 0x21, 0x00, 0x00, 0x48, 0x72, 0xBB, 0x66
+};
+
+/* Factory test entry detection variables */
+static uint8_t entry_cmd_buffer[FACTORY_TEST_ENTRY_CMD_LEN];
+static uint8_t entry_cmd_index = 0;
+static uint32_t detection_start_time = 0;
+static bool entry_detection_active = false;
 
 /* Ring buffer for interrupt-safe data transfer */
 #define RING_BUFFER_SIZE 256
@@ -165,18 +177,85 @@ void factory_test_init(void) {
 }
 
 /**
- * @brief  Check if DIP6 pin is low to enter factory test mode
- * @retval true if should enter test mode, false otherwise
+ * @brief  Start factory test entry detection
+ * @retval None
  */
-bool factory_test_check_entry_condition(void) {
-    // Check DIP6_Pin (PF9) state
-    GPIO_PinState pin_state = HAL_GPIO_ReadPin(DIP6_GPIO_Port, DIP6_Pin);
+void factory_test_start_entry_detection(void) {
+    entry_cmd_index = 0;
+    detection_start_time = osKernelGetTickCount();
+    entry_detection_active = true;
+    memset(entry_cmd_buffer, 0, sizeof(entry_cmd_buffer));
+    elog_i(TAG, "Started factory test entry detection for 1 second");
+}
 
-    if (pin_state == GPIO_PIN_RESET) {
-        elog_i(TAG, "DIP6 pin detected low, entering factory test mode");
-        return true;
+/**
+ * @brief  Process byte for factory test entry detection
+ * @param  data: Received byte
+ * @retval true if entry command detected, false otherwise
+ */
+bool factory_test_process_entry_byte(uint8_t data) {
+    if (!entry_detection_active) {
+        return false;
     }
 
+    // Check if detection timeout
+    if ((osKernelGetTickCount() - detection_start_time) > FACTORY_TEST_DETECTION_TIMEOUT_MS) {
+        entry_detection_active = false;
+        elog_i(TAG, "Factory test entry detection timeout");
+        return false;
+    }
+
+    // Store byte in buffer
+    entry_cmd_buffer[entry_cmd_index] = data;
+    entry_cmd_index++;
+
+    // Check if we have enough bytes to compare
+    if (entry_cmd_index >= FACTORY_TEST_ENTRY_CMD_LEN) {
+        // Compare with expected command
+        if (memcmp(entry_cmd_buffer, FACTORY_TEST_ENTRY_CMD, FACTORY_TEST_ENTRY_CMD_LEN) == 0) {
+            entry_detection_active = false;
+            test_state = FACTORY_TEST_ENABLED;  // 设置工厂测试状态
+            elog_i(TAG, "Factory test entry command detected!");
+            return true;
+        } else {
+            // Shift buffer left to continue detection
+            memmove(entry_cmd_buffer, entry_cmd_buffer + 1, FACTORY_TEST_ENTRY_CMD_LEN - 1);
+            entry_cmd_index = FACTORY_TEST_ENTRY_CMD_LEN - 1;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * @brief  Blocking check for factory test entry command within 1 second
+ * @retval true if entry command detected, false otherwise
+ */
+bool factory_test_blocking_check_entry(void) {
+    elog_i(TAG, "Starting blocking factory test entry detection (1 second)...");
+    
+    // 启动检测
+    factory_test_start_entry_detection();
+    
+    // 阻塞等待1秒，每10ms检查一次
+    uint32_t start_time = osKernelGetTickCount();
+    uint32_t timeout_ticks = FACTORY_TEST_DETECTION_TIMEOUT_MS;
+    
+    while ((osKernelGetTickCount() - start_time) < timeout_ticks) {
+        if (!entry_detection_active) {
+            // 检测已完成（可能是检测到指令或其他原因）
+            if (test_state == FACTORY_TEST_ENABLED) {
+                elog_i(TAG, "Factory test entry command detected!");
+                return true;
+            }
+            break;
+        }
+        osDelay(10);  // 10ms延迟避免过度占用CPU
+    }
+    
+    // 超时或未检测到指令
+    entry_detection_active = false;
+    elog_i(TAG, "Factory test entry detection timeout - no command received");
     return false;
 }
 
@@ -185,7 +264,6 @@ bool factory_test_check_entry_condition(void) {
  * @retval None
  */
 void factory_test_enter_mode(void) {
-    test_state = FACTORY_TEST_ENABLED;
     ring_buffer_reset();
     factory_test_reset_frame_buffer();
     elog_set_filter_tag_lvl(TAG, ELOG_LVL_ERROR);

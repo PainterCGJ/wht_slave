@@ -106,19 +106,15 @@ void uart_cmd_handler_init(void) {
  */
 void uart_cmd_handler_task(void* argument) {
     printf("UART command handler task started\r\n");
-    
-
-    // 检查是否需要进入工厂测试模式
-    if (factory_test_check_entry_condition()) {
-        factory_test_enter_mode();
-    }
 
     for (;;) {
-        // 处理工厂测试协议（如果启用）
-        factory_test_task_process();
+        // 如果工厂测试模式启用，处理工厂测试协议
+        if (factory_test_is_enabled()) {
+            factory_test_task_process();
+        }
 
-        // 100ms周期处理，避免过度占用CPU
-        osDelay(10);
+        // 定期检查，避免过度占用CPU
+        osDelay(100);
     }
 }
 
@@ -164,6 +160,9 @@ void process_uart_command(char* command) {
  */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef* huart) {
     if (huart->Instance == DEBUG_UART.Instance) {
+        // 检查是否是工厂测试入口指令（仅在检测期间有效）
+        factory_test_process_entry_byte(uart_rx_char);
+        
         // 如果工厂测试模式启用，优先处理工厂测试协议
         if (factory_test_is_enabled()) {
             factory_test_process_data(uart_rx_char);

@@ -163,9 +163,17 @@ typedef enum {
     FACTORY_TEST_PROCESSING
 } factory_test_state_t;
 
+/* Factory test entry command */
+#define FACTORY_TEST_ENTRY_CMD_LEN    11
+extern const uint8_t FACTORY_TEST_ENTRY_CMD[FACTORY_TEST_ENTRY_CMD_LEN];
+
+#define FACTORY_TEST_DETECTION_TIMEOUT_MS  1000  // 1 second timeout
+
 /* Function prototypes -------------------------------------------------------*/
 void factory_test_init(void);
-bool factory_test_check_entry_condition(void);  // Check DIP6_Pin low level
+void factory_test_start_entry_detection(void);  // Start entry command detection
+bool factory_test_process_entry_byte(uint8_t data);  // Process byte for entry detection
+bool factory_test_blocking_check_entry(void);   // Blocking check for entry command (1 second)
 void factory_test_enter_mode(void);
 void factory_test_exit_mode(void);
 bool factory_test_is_enabled(void);

@@ -32,6 +32,7 @@
 #include "elog.h"
 #include "bootloader_flag.h"
 #include "uart_cmd_handler.h"
+#include "factory_test.h"
 #include "cmsis_os2.h"
 #include <stdio.h>
 /* USER CODE END Includes */
