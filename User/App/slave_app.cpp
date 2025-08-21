@@ -26,7 +26,7 @@ extern "C" uint32_t slave_device_get_sync_timestamp_ms(void* device) {
 }
 
 extern "C" int main_app(void) {
-    // UWB_Task_Init();
+    UWB_Task_Init();
 
     // SlaveDevice slaveDevice;
     

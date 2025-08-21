@@ -19,18 +19,19 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "FreeRTOS.h"
-#include "task.h"
-#include "main.h"
+
 #include "cmsis_os.h"
+#include "main.h"
+#include "task.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 
 #include "elog.h"
+#include "factory_test.h"
 #include "gpio.h"
 #include "usart.h"
-#include "factory_test.h"
 
 /* USER CODE END Includes */
 
@@ -56,9 +57,9 @@ typedef StaticTask_t osStaticThreadDef_t;
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
-  .name = "defaultTask",
-  .stack_size = 1024 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+    .name = "defaultTask",
+    .stack_size = 1024 * 4,
+    .priority = (osPriority_t)osPriorityNormal,
 };
 
 /* Private function prototypes -----------------------------------------------*/
@@ -95,20 +96,20 @@ void StartDefaultTask(void *argument);
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
 /**
-  * @brief  FreeRTOS initialization
-  * @param  None
-  * @retval None
-  */
+ * @brief  FreeRTOS initialization
+ * @param  None
+ * @retval None
+ */
 void MX_FREERTOS_Init(void) {
-  /* USER CODE BEGIN Init */
+    /* USER CODE BEGIN Init */
 
-  /* USER CODE END Init */
+    /* USER CODE END Init */
 
-  /* USER CODE BEGIN RTOS_MUTEX */
+    /* USER CODE BEGIN RTOS_MUTEX */
     /* add mutexes, ... */
-  /* USER CODE END RTOS_MUTEX */
+    /* USER CODE END RTOS_MUTEX */
 
-  /* USER CODE BEGIN RTOS_SEMAPHORES */
+    /* USER CODE BEGIN RTOS_SEMAPHORES */
     /* add semaphores, ... */
     /* creation of elog_lock */
     elog_lockHandle = osSemaphoreNew(1, 1, &elog_lock_attributes);
@@ -119,32 +120,32 @@ void MX_FREERTOS_Init(void) {
     /* creation of elog_dma_lock */
     elog_dma_lockHandle = osSemaphoreNew(1, 1, &elog_dma_lock_attributes);
 
-  /* USER CODE END RTOS_SEMAPHORES */
+    /* USER CODE END RTOS_SEMAPHORES */
 
-  /* USER CODE BEGIN RTOS_TIMERS */
+    /* USER CODE BEGIN RTOS_TIMERS */
     /* start timers, add new ones, ... */
-  /* USER CODE END RTOS_TIMERS */
+    /* USER CODE END RTOS_TIMERS */
 
-  /* USER CODE BEGIN RTOS_QUEUES */
+    /* USER CODE BEGIN RTOS_QUEUES */
     /* add queues, ... */
-  /* USER CODE END RTOS_QUEUES */
+    /* USER CODE END RTOS_QUEUES */
 
-  /* Create the thread(s) */
-  /* creation of defaultTask */
-  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+    /* Create the thread(s) */
+    /* creation of defaultTask */
+    defaultTaskHandle =
+        osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
-  /* USER CODE BEGIN RTOS_THREADS */
+    /* USER CODE BEGIN RTOS_THREADS */
     /* add threads, ... */
 
     /* creation of elog */
     elogHandle = osThreadNew(elog_entry, NULL, &elog_attributes);
 
-  /* USER CODE END RTOS_THREADS */
+    /* USER CODE END RTOS_THREADS */
 
-  /* USER CODE BEGIN RTOS_EVENTS */
+    /* USER CODE BEGIN RTOS_EVENTS */
     /* add events, ... */
-  /* USER CODE END RTOS_EVENTS */
-
+    /* USER CODE END RTOS_EVENTS */
 }
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -154,17 +155,18 @@ void MX_FREERTOS_Init(void) {
  * @retval None
  */
 /* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void *argument)
-{
-  /* USER CODE BEGIN StartDefaultTask */
-    osDelay(50);  // 等待系统稳定
-    
+void StartDefaultTask(void *argument) {
+    /* USER CODE BEGIN StartDefaultTask */
+    osDelay(50);    // 等待系统稳定
+
     // 阻塞式检测工厂测试入口指令（1秒）
     if (factory_test_blocking_check_entry()) {
         // 进入工厂测试模式
-        printf("Factory test entry command detected, entering factory test mode\r\n");
+        printf(
+            "Factory test entry command detected, entering factory test "
+            "mode\r\n");
         factory_test_enter_mode();
-        
+
         // 工厂测试模式下的主循环
         for (;;) {
             factory_test_task_process();
@@ -172,16 +174,23 @@ void StartDefaultTask(void *argument)
         }
     } else {
         // 没有检测到工厂测试指令，进入正常应用程序
-        printf("No factory test command received, starting normal application\r\n");
+        printf(
+            "No factory test command received, starting normal "
+            "application\r\n");
+
+        // increase debug uart baudrate to 921600 for a better debug experience
+        DEBUG_UART.Init.BaudRate = 921600;
+        HAL_UART_Init(&DEBUG_UART);
+
         main_app();
-        
+
         // 正常应用程序完成后的循环
         for (;;) {
             HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
             osDelay(500);
         }
     }
-  /* USER CODE END StartDefaultTask */
+    /* USER CODE END StartDefaultTask */
 }
 
 /* Private application code --------------------------------------------------*/
@@ -193,4 +202,3 @@ int __io_putchar(int ch) {
 }
 
 /* USER CODE END Application */
-
