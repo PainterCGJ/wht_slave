@@ -153,28 +153,10 @@ uint32_t SlaveDevice::getSyncTimestampMs() {
 }
 
 void SlaveDevice::resetDevice() {
-    // 保留配置，但重置状态
-    deviceState = SlaveDeviceState::READY;
-
-    // 停止采集相关状态
-    if (isCollecting && continuityCollector) {
-        continuityCollector->stopCollection();
-        isCollecting = false;
+    // reset Device only reset lockController1 for now design
+    if (accessoryTask) {
+        accessoryTask->resetLockController();
     }
-
-    // 停止时隙管理器
-    if (slotManager) {
-        slotManager->stop();
-    }
-
-    // 重置数据发送相关状态
-    hasDataToSend = false;
-    isFirstCollection = true;
-    lastCollectionData.clear();
-
-    // 重置启动调度相关状态
-    isScheduledToStart = false;
-    scheduledStartTime = 0;
 
     elog_v("SlaveDevice",
            "Device reset to READY state, configuration preserved");
@@ -661,6 +643,10 @@ void SlaveDevice::AccessoryTask::task() {
 
         osDelay(UPDATE_INTERVAL_MS);
     }
+}
+
+void SlaveDevice::AccessoryTask::resetLockController() {
+    lockController.reset();
 }
 
 void SlaveDevice::AccessoryTask::updateDeviceStatus() {

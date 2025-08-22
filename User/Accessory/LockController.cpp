@@ -26,6 +26,12 @@ void LockController::update() {
     }
 }
 
+void LockController::reset() {
+    // 复位操作：解锁并关闭阀门
+    lockValve.close();
+    state = LockState::Unlocked;
+}
+
 LockState LockController::getState() const { return state; }
 
 const char* LockController::getName() const { return name; }

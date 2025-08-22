@@ -13,6 +13,7 @@ class LockController {
                    HalButton& unlockButton, HalValve& lockValve);
 
     void update();
+    void reset();  // 复位函数：解锁并关闭阀门
     LockState getState() const;
     const char* getName() const;
 

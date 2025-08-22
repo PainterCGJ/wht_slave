@@ -162,9 +162,6 @@ void StartDefaultTask(void *argument) {
     // 阻塞式检测工厂测试入口指令（1秒）
     if (factory_test_blocking_check_entry()) {
         // 进入工厂测试模式
-        printf(
-            "Factory test entry command detected, entering factory test "
-            "mode\r\n");
         factory_test_enter_mode();
 
         // 工厂测试模式下的主循环
@@ -174,9 +171,6 @@ void StartDefaultTask(void *argument) {
         }
     } else {
         // 没有检测到工厂测试指令，进入正常应用程序
-        printf(
-            "No factory test command received, starting normal "
-            "application\r\n");
 
         // increase debug uart baudrate to 921600 for a better debug experience
         DEBUG_UART.Init.BaudRate = 921600;

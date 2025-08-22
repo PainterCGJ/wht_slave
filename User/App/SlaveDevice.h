@@ -198,6 +198,7 @@ class SlaveDevice {
     class AccessoryTask : public TaskClassS<1024> {
        public:
         AccessoryTask(SlaveDevice& parent);
+        void resetLockController();  // 复位锁控制器
 
        private:
         SlaveDevice& parent;

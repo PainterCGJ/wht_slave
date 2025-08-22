@@ -169,6 +169,9 @@ static uint32_t get_gpio_pin_pull(GPIO_TypeDef* port, uint16_t pin);
  * @retval None
  */
 void factory_test_init(void) {
+    // set elog level to error
+    elog_set_filter_tag_lvl(TAG, ELOG_LVL_ERROR);
+
     test_state = FACTORY_TEST_DISABLED;
     ring_buffer_reset();
     factory_test_reset_frame_buffer();
@@ -266,7 +269,6 @@ bool factory_test_blocking_check_entry(void) {
 void factory_test_enter_mode(void) {
     ring_buffer_reset();
     factory_test_reset_frame_buffer();
-    elog_set_filter_tag_lvl(TAG, ELOG_LVL_ERROR);
 
     elog_i(TAG, "Entered factory test mode");
 
