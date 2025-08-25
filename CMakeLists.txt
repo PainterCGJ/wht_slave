@@ -31,6 +31,7 @@ enable_language(C ASM)
 add_executable(${CMAKE_PROJECT_NAME})
 
 set(UWB_CHIP_TYPE "CX310")
+set(RS485_DEBUG ON)
 
 if(UWB_CHIP_TYPE STREQUAL "DW1000")
     target_compile_definitions(${CMAKE_PROJECT_NAME} PUBLIC UWB_CHIP_TYPE_DW1000)
@@ -40,6 +41,12 @@ elseif(UWB_CHIP_TYPE STREQUAL "CX310")
     target_link_libraries(${CMAKE_PROJECT_NAME} cx310)
 else()
     message(FATAL_ERROR "Unsupported chip type: ${UWB_CHIP_TYPE}")
+endif()
+
+if(RS485_DEBUG)
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PUBLIC RS485_DEBUG)
+else()
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PUBLIC RS232_DEBUG)
 endif()
 
 # Add STM32CubeMX generated sources

@@ -23,11 +23,11 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "cmsis_os.h"
 #include "elog.h"
 #include "main.h"
-#include "usart.h"
 #include "stm32f4xx_hal_flash_ex.h"
-#include "cmsis_os.h"
+#include "usart.h"
 
 /* Private variables ---------------------------------------------------------*/
 static const char* TAG = "factory_test";
@@ -35,8 +35,7 @@ static factory_test_state_t test_state = FACTORY_TEST_DISABLED;
 
 /* Factory test entry command definition */
 const uint8_t FACTORY_TEST_ENTRY_CMD[FACTORY_TEST_ENTRY_CMD_LEN] = {
-    0x55, 0xAA, 0x01, 0x02, 0x21, 0x00, 0x00, 0x48, 0x72, 0xBB, 0x66
-};
+    0x55, 0xAA, 0x01, 0x02, 0x21, 0x00, 0x00, 0x48, 0x72, 0xBB, 0x66};
 
 /* Factory test entry detection variables */
 static uint8_t entry_cmd_buffer[FACTORY_TEST_ENTRY_CMD_LEN];
@@ -164,13 +163,24 @@ static uint32_t get_gpio_pin_pull(GPIO_TypeDef* port, uint16_t pin);
 
 /* Public functions ----------------------------------------------------------*/
 
+HAL_StatusTypeDef factory_test_send_data(const uint8_t* data, uint16_t length) {
+    RS485_TX_EN();
+    HAL_StatusTypeDef ret =
+        HAL_UART_Transmit(&RS485_UART, data, length, HAL_MAX_DELAY);
+    RS485_RX_EN();
+    return ret;
+}
+
 /**
  * @brief  Initialize factory test mode
  * @retval None
  */
+extern uint8_t rs485_uart_rx_char;
 void factory_test_init(void) {
     // set elog level to error
     elog_set_filter_tag_lvl(TAG, ELOG_LVL_ERROR);
+
+    HAL_UART_Receive_IT(&RS485_UART, &rs485_uart_rx_char, 1);
 
     test_state = FACTORY_TEST_DISABLED;
     ring_buffer_reset();
@@ -202,7 +212,8 @@ bool factory_test_process_entry_byte(uint8_t data) {
     }
 
     // Check if detection timeout
-    if ((osKernelGetTickCount() - detection_start_time) > FACTORY_TEST_DETECTION_TIMEOUT_MS) {
+    if ((osKernelGetTickCount() - detection_start_time) >
+        FACTORY_TEST_DETECTION_TIMEOUT_MS) {
         entry_detection_active = false;
         elog_i(TAG, "Factory test entry detection timeout");
         return false;
@@ -215,14 +226,16 @@ bool factory_test_process_entry_byte(uint8_t data) {
     // Check if we have enough bytes to compare
     if (entry_cmd_index >= FACTORY_TEST_ENTRY_CMD_LEN) {
         // Compare with expected command
-        if (memcmp(entry_cmd_buffer, FACTORY_TEST_ENTRY_CMD, FACTORY_TEST_ENTRY_CMD_LEN) == 0) {
+        if (memcmp(entry_cmd_buffer, FACTORY_TEST_ENTRY_CMD,
+                   FACTORY_TEST_ENTRY_CMD_LEN) == 0) {
             entry_detection_active = false;
-            test_state = FACTORY_TEST_ENABLED;  // 设置工厂测试状态
+            test_state = FACTORY_TEST_ENABLED;    // 设置工厂测试状态
             elog_i(TAG, "Factory test entry command detected!");
             return true;
         } else {
             // Shift buffer left to continue detection
-            memmove(entry_cmd_buffer, entry_cmd_buffer + 1, FACTORY_TEST_ENTRY_CMD_LEN - 1);
+            memmove(entry_cmd_buffer, entry_cmd_buffer + 1,
+                    FACTORY_TEST_ENTRY_CMD_LEN - 1);
             entry_cmd_index = FACTORY_TEST_ENTRY_CMD_LEN - 1;
         }
     }
@@ -236,14 +249,14 @@ bool factory_test_process_entry_byte(uint8_t data) {
  */
 bool factory_test_blocking_check_entry(void) {
     elog_i(TAG, "Starting blocking factory test entry detection (1 second)...");
-    
+
     // 启动检测
     factory_test_start_entry_detection();
-    
+
     // 阻塞等待1秒，每10ms检查一次
     uint32_t start_time = osKernelGetTickCount();
     uint32_t timeout_ticks = FACTORY_TEST_DETECTION_TIMEOUT_MS;
-    
+
     while ((osKernelGetTickCount() - start_time) < timeout_ticks) {
         if (!entry_detection_active) {
             // 检测已完成（可能是检测到指令或其他原因）
@@ -253,9 +266,9 @@ bool factory_test_blocking_check_entry(void) {
             }
             break;
         }
-        osDelay(10);  // 10ms延迟避免过度占用CPU
+        osDelay(10);    // 10ms延迟避免过度占用CPU
     }
-    
+
     // 超时或未检测到指令
     entry_detection_active = false;
     elog_i(TAG, "Factory test entry detection timeout - no command received");
@@ -274,7 +287,7 @@ void factory_test_enter_mode(void) {
 
     // Send confirmation message
     const char* msg = "Factory test mode activated (DIP6 detected)\r\n";
-    HAL_UART_Transmit(&DEBUG_UART, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+    factory_test_send_data((uint8_t*)msg, strlen(msg));
 }
 
 /**
@@ -514,7 +527,7 @@ void factory_test_send_response(const factory_test_frame_t* response) {
     tx_buffer[tx_index++] = (response->eof >> 8) & 0xFF;
 
     // Send via UART
-    HAL_UART_Transmit(&DEBUG_UART, tx_buffer, tx_index, HAL_MAX_DELAY);
+    factory_test_send_data(tx_buffer, tx_index);
 
     elog_d(TAG, "Sent response frame, MSG_ID=0x%02X, len=%d", response->msg_id,
            tx_index);
@@ -803,17 +816,18 @@ void factory_test_handle_additional_test(const factory_test_frame_t* frame) {
             // Sub-ID 0x01: UART loopback test
             status = factory_test_uart_loopback();
             uint8_t response_payload[2] = {sub_id, status};
-            factory_test_create_response_frame(&response, MSG_ID_ADDITIONAL_TEST,
-                                               response_payload, 2);
+            factory_test_create_response_frame(
+                &response, MSG_ID_ADDITIONAL_TEST, response_payload, 2);
         } break;
 
         case TEST_SUB_WRITE_SN: {
             // Sub-ID 0x02: Write SN code
-            if (frame->payload_len < 3) {  // Sub-ID(1) + SN_length(1) + SN_data(>=1)
+            if (frame->payload_len <
+                3) {    // Sub-ID(1) + SN_length(1) + SN_data(>=1)
                 status = DEVICE_ERR_EXECUTION;
                 uint8_t response_payload[2] = {sub_id, status};
-                factory_test_create_response_frame(&response, MSG_ID_ADDITIONAL_TEST,
-                                                   response_payload, 2);
+                factory_test_create_response_frame(
+                    &response, MSG_ID_ADDITIONAL_TEST, response_payload, 2);
             } else {
                 uint8_t sn_length = frame->payload[1];
                 const uint8_t* sn_data = &frame->payload[2];
@@ -825,8 +839,8 @@ void factory_test_handle_additional_test(const factory_test_frame_t* frame) {
                 }
 
                 uint8_t response_payload[2] = {sub_id, status};
-                factory_test_create_response_frame(&response, MSG_ID_ADDITIONAL_TEST,
-                                                   response_payload, 2);
+                factory_test_create_response_frame(
+                    &response, MSG_ID_ADDITIONAL_TEST, response_payload, 2);
             }
         } break;
 
@@ -842,12 +856,12 @@ void factory_test_handle_additional_test(const factory_test_frame_t* frame) {
                 response_payload[1] = status;
                 response_payload[2] = DEVICE_UID_SIZE;
                 memcpy(&response_payload[3], uid_data, DEVICE_UID_SIZE);
-                factory_test_create_response_frame(&response, MSG_ID_ADDITIONAL_TEST,
-                                                   response_payload, 15);
+                factory_test_create_response_frame(
+                    &response, MSG_ID_ADDITIONAL_TEST, response_payload, 15);
             } else {
                 uint8_t response_payload[2] = {sub_id, status};
-                factory_test_create_response_frame(&response, MSG_ID_ADDITIONAL_TEST,
-                                                   response_payload, 2);
+                factory_test_create_response_frame(
+                    &response, MSG_ID_ADDITIONAL_TEST, response_payload, 2);
             }
         } break;
 
@@ -864,12 +878,13 @@ void factory_test_handle_additional_test(const factory_test_frame_t* frame) {
                 response_payload[1] = status;
                 response_payload[2] = sn_length;
                 memcpy(&response_payload[3], sn_data, sn_length);
-                factory_test_create_response_frame(&response, MSG_ID_ADDITIONAL_TEST,
-                                                   response_payload, 3 + sn_length);
+                factory_test_create_response_frame(
+                    &response, MSG_ID_ADDITIONAL_TEST, response_payload,
+                    3 + sn_length);
             } else {
                 uint8_t response_payload[2] = {sub_id, status};
-                factory_test_create_response_frame(&response, MSG_ID_ADDITIONAL_TEST,
-                                                   response_payload, 2);
+                factory_test_create_response_frame(
+                    &response, MSG_ID_ADDITIONAL_TEST, response_payload, 2);
             }
         } break;
 
@@ -883,24 +898,24 @@ void factory_test_handle_additional_test(const factory_test_frame_t* frame) {
                 uint8_t response_payload[6];
                 response_payload[0] = sub_id;
                 response_payload[1] = status;
-                response_payload[2] = 3;  // FW version length
-                response_payload[3] = version_data[0];  // Major
-                response_payload[4] = version_data[1];  // Minor
-                response_payload[5] = version_data[2];  // Patch
-                factory_test_create_response_frame(&response, MSG_ID_ADDITIONAL_TEST,
-                                                   response_payload, 6);
+                response_payload[2] = 3;                  // FW version length
+                response_payload[3] = version_data[0];    // Major
+                response_payload[4] = version_data[1];    // Minor
+                response_payload[5] = version_data[2];    // Patch
+                factory_test_create_response_frame(
+                    &response, MSG_ID_ADDITIONAL_TEST, response_payload, 6);
             } else {
                 uint8_t response_payload[2] = {sub_id, status};
-                factory_test_create_response_frame(&response, MSG_ID_ADDITIONAL_TEST,
-                                                   response_payload, 2);
+                factory_test_create_response_frame(
+                    &response, MSG_ID_ADDITIONAL_TEST, response_payload, 2);
             }
         } break;
 
         default: {
             elog_w(TAG, "Unknown additional test sub-ID: 0x%02X", sub_id);
             uint8_t response_payload[2] = {sub_id, DEVICE_ERR_INVALID_SUB_ID};
-            factory_test_create_response_frame(&response, MSG_ID_ADDITIONAL_TEST,
-                                               response_payload, 2);
+            factory_test_create_response_frame(
+                &response, MSG_ID_ADDITIONAL_TEST, response_payload, 2);
         } break;
     }
 
@@ -1558,13 +1573,13 @@ static HAL_StatusTypeDef flash_erase_sn_sector(void) {
 
     // 配置擦除参数
     erase_init.TypeErase = FLASH_TYPEERASE_SECTORS;
-    erase_init.VoltageRange = FLASH_VOLTAGE_RANGE_3;  // 2.7V-3.6V
+    erase_init.VoltageRange = FLASH_VOLTAGE_RANGE_3;    // 2.7V-3.6V
     erase_init.Sector = SN_FLASH_SECTOR;
     erase_init.NbSectors = 1;
 
     // 执行擦除
     status = HAL_FLASHEx_Erase(&erase_init, &sector_error);
-    
+
     // 锁定Flash
     HAL_FLASH_Lock();
 
@@ -1581,7 +1596,7 @@ static HAL_StatusTypeDef flash_write_sn_data(const sn_storage_t* sn_storage) {
     uint32_t* src_ptr = (uint32_t*)sn_storage;
     uint32_t flash_addr = SN_FLASH_ADDRESS;
     uint32_t data_size = sizeof(sn_storage_t);
-    uint32_t word_count = (data_size + 3) / 4;  // 向上取整到32位字
+    uint32_t word_count = (data_size + 3) / 4;    // 向上取整到32位字
 
     // 解锁Flash
     status = HAL_FLASH_Unlock();
@@ -1591,7 +1606,8 @@ static HAL_StatusTypeDef flash_write_sn_data(const sn_storage_t* sn_storage) {
 
     // 按32位字写入数据
     for (uint32_t i = 0; i < word_count; i++) {
-        status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, flash_addr + (i * 4), src_ptr[i]);
+        status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, flash_addr + (i * 4),
+                                   src_ptr[i]);
         if (status != HAL_OK) {
             HAL_FLASH_Lock();
             return status;
@@ -1617,13 +1633,14 @@ static const sn_storage_t* get_sn_storage_ptr(void) {
  * @param  sn_length: Length of SN data
  * @retval Device status
  */
-device_status_t factory_test_write_sn(const uint8_t* sn_data, uint8_t sn_length) {
+device_status_t factory_test_write_sn(const uint8_t* sn_data,
+                                      uint8_t sn_length) {
     if (sn_data == NULL || sn_length == 0 || sn_length > SN_MAX_LENGTH) {
         return DEVICE_ERR_EXECUTION;
     }
 
     sn_storage_t sn_storage = {0};
-    
+
     // 准备SN存储结构
     sn_storage.magic = SN_MAGIC_NUMBER;
     sn_storage.sn_length = sn_length;
@@ -1643,7 +1660,7 @@ device_status_t factory_test_write_sn(const uint8_t* sn_data, uint8_t sn_length)
 
     // 验证写入结果
     const sn_storage_t* stored_sn = get_sn_storage_ptr();
-    if (stored_sn->magic != SN_MAGIC_NUMBER || 
+    if (stored_sn->magic != SN_MAGIC_NUMBER ||
         stored_sn->sn_length != sn_length ||
         memcmp(stored_sn->sn_data, sn_data, sn_length) != 0) {
         elog_e(TAG, "SN data verification failed");
@@ -1727,22 +1744,22 @@ device_status_t factory_test_uart_loopback(void) {
     uint8_t rx_buffer[sizeof(UART_LOOPBACK_TEST_STRING)] = {0};
     uint32_t tx_len = strlen(UART_LOOPBACK_TEST_STRING);
     HAL_StatusTypeDef status;
-    
+
     elog_d(TAG, "Starting UART loopback test");
 
     // // 清空接收缓冲区
     // memset(rx_buffer, 0, sizeof(rx_buffer));
 
     // // 发送测试字符串
-    // status = HAL_UART_Transmit(&huart1, tx_buffer, tx_len, UART_LOOPBACK_TIMEOUT);
-    // if (status != HAL_OK) {
+    // status = HAL_UART_Transmit(&huart1, tx_buffer, tx_len,
+    // UART_LOOPBACK_TIMEOUT); if (status != HAL_OK) {
     //     elog_e(TAG, "UART transmit failed: %d", status);
     //     return DEVICE_ERR_EXECUTION;
     // }
 
     // // 接收字符串
-    // status = HAL_UART_Receive(&huart1, rx_buffer, tx_len, UART_LOOPBACK_TIMEOUT);
-    // if (status != HAL_OK) {
+    // status = HAL_UART_Receive(&huart1, rx_buffer, tx_len,
+    // UART_LOOPBACK_TIMEOUT); if (status != HAL_OK) {
     //     elog_e(TAG, "UART receive failed: %d", status);
     //     return DEVICE_ERR_EXECUTION;
     // }
@@ -1771,19 +1788,21 @@ device_status_t factory_test_read_device_uid(uint8_t* uid_data) {
 
     // 读取96位(12字节)设备UID
     uint32_t* uid_words = (uint32_t*)uid_data;
-    
-    // UID存储在3个32位寄存器中
-    uid_words[0] = HAL_GetUIDw0();  // UID[31:0]
-    uid_words[1] = HAL_GetUIDw1();  // UID[63:32]
-    uid_words[2] = HAL_GetUIDw2();  // UID[95:64]
 
-    elog_d(TAG, "Device UID: %08X%08X%08X", uid_words[2], uid_words[1], uid_words[0]);
+    // UID存储在3个32位寄存器中
+    uid_words[0] = HAL_GetUIDw0();    // UID[31:0]
+    uid_words[1] = HAL_GetUIDw1();    // UID[63:32]
+    uid_words[2] = HAL_GetUIDw2();    // UID[95:64]
+
+    elog_d(TAG, "Device UID: %08X%08X%08X", uid_words[2], uid_words[1],
+           uid_words[0]);
     return DEVICE_OK;
 }
 
 /**
  * @brief  Read firmware version
- * @param  version_data: Buffer to store version data (3 bytes: major, minor, patch)
+ * @param  version_data: Buffer to store version data (3 bytes: major, minor,
+ * patch)
  * @retval Device status
  */
 device_status_t factory_test_read_firmware_version(uint8_t* version_data) {
@@ -1796,6 +1815,7 @@ device_status_t factory_test_read_firmware_version(uint8_t* version_data) {
     version_data[1] = (uint8_t)FIRMWARE_VERSION_MINOR;
     version_data[2] = (uint8_t)FIRMWARE_VERSION_PATCH;
 
-    elog_d(TAG, "Firmware version: %d.%d.%d", version_data[0], version_data[1], version_data[2]);
+    elog_d(TAG, "Firmware version: %d.%d.%d", version_data[0], version_data[1],
+           version_data[2]);
     return DEVICE_OK;
 }

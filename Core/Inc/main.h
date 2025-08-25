@@ -71,6 +71,10 @@ void Error_Handler(void);
 #define RS485_CTRL_GPIO_Port GPIOF
 #define DIP8_Pin GPIO_PIN_5
 #define DIP8_GPIO_Port GPIOF
+#define RS485_RX_Pin GPIO_PIN_6
+#define RS485_RX_GPIO_Port GPIOF
+#define RS485_TX_Pin GPIO_PIN_7
+#define RS485_TX_GPIO_Port GPIOF
 #define DIP7_Pin GPIO_PIN_8
 #define DIP7_GPIO_Port GPIOF
 #define DIP6_Pin GPIO_PIN_9
