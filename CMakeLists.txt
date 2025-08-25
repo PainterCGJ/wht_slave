@@ -56,6 +56,7 @@ add_subdirectory(easylogger)
 add_subdirectory(FreeRTOScpp)
 add_subdirectory(protocol)
 add_subdirectory(factory_test)
+add_subdirectory(bootloader)
 
 # Link directories setup
 target_link_directories(
