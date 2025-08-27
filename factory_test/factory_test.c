@@ -289,10 +289,6 @@ void factory_test_enter_mode(void) {
     factory_test_reset_frame_buffer();
 
     elog_i(TAG, "Entered factory test mode");
-
-    // Send confirmation message
-    const char* msg = "Factory test mode activated (DIP6 detected)\r\n";
-    factory_test_send_data((uint8_t*)msg, strlen(msg));
 }
 
 /**
