@@ -3,8 +3,8 @@
 #include <functional>
 #include <memory>
 
-#include "ContinuityCollector.h"
-#include "SlaveDeviceState.h"
+#include "continuity_collector.h"
+#include "slave_device_state.h"
 #include "WhtsProtocol.h"
 
 

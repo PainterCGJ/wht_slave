@@ -1,9 +1,9 @@
-#include "SlaveDevice.h"
+#include "slave_device.h"
 
 #include <cstdint>
 #include <cstdio>
 
-#include "Master2SlaveMessageHandlers.h"
+#include "master_slave_message_handlers.h"
 #include "adc.h"
 #include "cmsis_os2.h"
 #include "elog.h"

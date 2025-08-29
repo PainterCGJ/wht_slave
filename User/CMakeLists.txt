@@ -1,8 +1,8 @@
-add_subdirectory(App)
-add_subdirectory(Task)
+add_subdirectory(app)
+add_subdirectory(task)
 add_subdirectory(hptimer)
-add_subdirectory(ContinuityCollector)
-add_subdirectory(SlotManager)
+add_subdirectory(continuity_collector)
+add_subdirectory(slot_manager)
 add_subdirectory(uid)
 add_subdirectory(accessory)
 

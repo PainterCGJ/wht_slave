@@ -2,10 +2,10 @@
 
 #include <memory>
 
-#include "ContinuityCollector.h"
+#include "continuity_collector.h"
 #include "LockController.h"
-#include "SlaveDeviceState.h"
-#include "SlotManager.h"
+#include "slave_device_state.h"
+#include "slot_manager.h"
 #include "TaskCPP.h"
 #include "WhtsProtocol.h"
 #include "button.h"

@@ -1,4 +1,4 @@
-#include "SlaveDevice.h"
+#include "slave_device.h"
 #include "cmsis_os2.h"
 #include "elog.h"
 #include "gpio.h"
