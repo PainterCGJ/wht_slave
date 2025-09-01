@@ -134,3 +134,14 @@ add_definitions(
 if(CMAKE_C_COMPILER_ID MATCHES "GNU")
     include(${PROJECT_SOURCE_DIR}/cmake/combine_firmware.cmake)
 endif()
+
+# auto format User folder code
+file(GLOB_RECURSE USER_SOURCE_FILES
+    "${CMAKE_SOURCE_DIR}/User/*.cpp"
+    "${CMAKE_SOURCE_DIR}/User/*.h"
+)
+
+add_custom_target(format ALL
+    COMMAND clang-format -i -style=file ${USER_SOURCE_FILES}
+    COMMENT "Running clang-format on all files in User/"
+)

@@ -15,18 +15,20 @@
 #define _SLEEP_H_
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-/*! ------------------------------------------------------------------------------------------------------------------
- * Function: deca_sleep()
- *
- * Wait for a given amount of time.
- * /!\ This implementation is designed for a single threaded application and is blocking.
- *
- * param  time_ms  time to wait in milliseconds
- */
-void deca_sleep(unsigned int time_ms);
+    /*!
+     * ------------------------------------------------------------------------------------------------------------------
+     * Function: deca_sleep()
+     *
+     * Wait for a given amount of time.
+     * /!\ This implementation is designed for a single threaded application and is blocking.
+     *
+     * param  time_ms  time to wait in milliseconds
+     */
+    void deca_sleep(unsigned int time_ms);
 
 #ifdef __cplusplus
 }

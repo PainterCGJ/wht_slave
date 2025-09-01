@@ -1,81 +1,109 @@
 #include "button.h"
 
 // HalButton实现
-HalButton::HalButton(const char* name, GPIO_TypeDef* port, uint16_t pin)
-    : name(name), port(port), pin(pin), lastState(false), pressedEdge(false) {}
-
-void HalButton::update() {
-    bool current = isPressed();
-    pressedEdge = (!lastState && current);
-    lastState = current;
+HalButton::HalButton(const char *name, GPIO_TypeDef *port, uint16_t pin)
+    : m_Name(name), m_Port(port), m_Pin(pin), m_LastState(false), m_PressedEdge(false)
+{
 }
 
-bool HalButton::isPressed() const {
-    return HAL_GPIO_ReadPin(port, pin) == GPIO_PIN_RESET;    // 假设低电平为按下
+void HalButton::Update()
+{
+    bool current = IsPressed();
+    m_PressedEdge = (!m_LastState && current);
+    m_LastState = current;
 }
 
-bool HalButton::wasPressed() const { return pressedEdge; }
+bool HalButton::IsPressed() const
+{
+    return HAL_GPIO_ReadPin(m_Port, m_Pin) == GPIO_PIN_RESET; // 假设低电平为按下
+}
 
-const char* HalButton::getName() const { return name; }
+bool HalButton::WasPressed() const
+{
+    return m_PressedEdge;
+}
+
+const char *HalButton::GetName() const
+{
+    return m_Name;
+}
 
 // HalSensor实现
-HalSensor::HalSensor(const char* name, GPIO_TypeDef* port, uint16_t pin)
-    : name(name), port(port), pin(pin) {}
-
-bool HalSensor::isTrigger() const {
-    return HAL_GPIO_ReadPin(port, pin) == GPIO_PIN_SET;
+HalSensor::HalSensor(const char *name, GPIO_TypeDef *port, uint16_t pin) : m_Name(name), m_Port(port), m_Pin(pin)
+{
 }
 
-const char* HalSensor::getName() const { return name; }
+bool HalSensor::IsTrigger() const
+{
+    return HAL_GPIO_ReadPin(m_Port, m_Pin) == GPIO_PIN_SET;
+}
+
+const char *HalSensor::GetName() const
+{
+    return m_Name;
+}
 
 // HalValve实现
-HalValve::HalValve(const char* name, GPIO_TypeDef* port, uint16_t pin,
-                   bool active_high)
-    : name(name),
-      active_high(active_high),
-      port(port),
-      pin(pin),
-      isOpenState(false) {}
-
-void HalValve::open() {
-    HAL_GPIO_WritePin(port, pin, active_high ? GPIO_PIN_SET : GPIO_PIN_RESET);
-    isOpenState = true;
+HalValve::HalValve(const char *name, GPIO_TypeDef *port, uint16_t pin, bool active_high)
+    : m_Name(name), m_ActiveHigh(active_high), m_Port(port), m_Pin(pin), m_IsOpenState(false)
+{
 }
 
-void HalValve::close() {
-    HAL_GPIO_WritePin(port, pin, active_high ? GPIO_PIN_RESET : GPIO_PIN_SET);
-    isOpenState = false;
+void HalValve::Open()
+{
+    HAL_GPIO_WritePin(m_Port, m_Pin, m_ActiveHigh ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    m_IsOpenState = true;
 }
 
-void HalValve::toggle() {
-    HAL_GPIO_TogglePin(port, pin);
-    isOpenState = !isOpenState;
+void HalValve::Close()
+{
+    HAL_GPIO_WritePin(m_Port, m_Pin, m_ActiveHigh ? GPIO_PIN_RESET : GPIO_PIN_SET);
+    m_IsOpenState = false;
 }
 
-bool HalValve::isOpen() const { return isOpenState; }
+void HalValve::Toggle()
+{
+    HAL_GPIO_TogglePin(m_Port, m_Pin);
+    m_IsOpenState = !m_IsOpenState;
+}
 
-const char* HalValve::getName() const { return name; }
+bool HalValve::IsOpen() const
+{
+    return m_IsOpenState;
+}
+
+const char *HalValve::GetName() const
+{
+    return m_Name;
+}
 
 // HalDipSwitch实现
-HalDipSwitch::HalDipSwitch(const DipSwitchInfo& info)
-    : keys{HalButton("DIP0", info.pins[0].port, info.pins[0].pin),
-           HalButton("DIP1", info.pins[1].port, info.pins[1].pin),
-           HalButton("DIP2", info.pins[2].port, info.pins[2].pin),
-           HalButton("DIP3", info.pins[3].port, info.pins[3].pin),
-           HalButton("DIP4", info.pins[4].port, info.pins[4].pin),
-           HalButton("DIP5", info.pins[5].port, info.pins[5].pin),
-           HalButton("DIP6", info.pins[6].port, info.pins[6].pin),
-           HalButton("DIP7", info.pins[7].port, info.pins[7].pin)} {}
-
-bool HalDipSwitch::isOn(int index) const {
-    if (index < 0 || index >= 8) return false;
-    return keys[index].isPressed();
+HalDipSwitch::HalDipSwitch(const DipSwitchInfo &info)
+    : m_Keys{HalButton("DIP0", info.Pins[0].Port, info.Pins[0].Pin),
+             HalButton("DIP1", info.Pins[1].Port, info.Pins[1].Pin),
+             HalButton("DIP2", info.Pins[2].Port, info.Pins[2].Pin),
+             HalButton("DIP3", info.Pins[3].Port, info.Pins[3].Pin),
+             HalButton("DIP4", info.Pins[4].Port, info.Pins[4].Pin),
+             HalButton("DIP5", info.Pins[5].Port, info.Pins[5].Pin),
+             HalButton("DIP6", info.Pins[6].Port, info.Pins[6].Pin),
+             HalButton("DIP7", info.Pins[7].Port, info.Pins[7].Pin)}
+{
 }
 
-uint8_t HalDipSwitch::value() const {
+bool HalDipSwitch::IsOn(int index) const
+{
+    if (index < 0 || index >= 8)
+        return false;
+    return m_Keys[index].IsPressed();
+}
+
+uint8_t HalDipSwitch::Value() const
+{
     uint8_t val = 0;
-    for (int i = 0; i < 8; ++i) {
-        if (isOn(i)) {
+    for (int i = 0; i < 8; ++i)
+    {
+        if (IsOn(i))
+        {
             val |= (1 << i);
         }
     }

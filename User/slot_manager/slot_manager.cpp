@@ -3,86 +3,91 @@
 #include "hptimer.hpp"
 
 SlotManager::SlotManager()
-    : startSlot_(0),
-      deviceSlotCount_(0),
-      totalSlotCount_(0),
-      slotIntervalMs_(0),
-      isRunning_(false),
-      isConfigured_(false),
-      isFirstProcess_(true),
-      lastSlotTimeUs_(0),
-      startTimeUs_(0) {
+    : m_StartSlot(0), m_DeviceSlotCount(0), m_TotalSlotCount(0), m_SlotIntervalMs(0), m_IsRunning(false),
+      m_IsConfigured(false), m_IsFirstProcess(true), m_LastSlotTimeUs(0), m_StartTimeUs(0)
+{
     elog_v("SlotManager", "SlotManager constructed");
 }
 
-bool SlotManager::configure(uint16_t startSlot, uint8_t deviceSlotCount, 
-                           uint16_t totalSlotCount, uint32_t slotIntervalMs) {
-    if (isRunning_) {
+bool SlotManager::Configure(uint16_t startSlot, uint8_t deviceSlotCount, uint16_t totalSlotCount,
+                            uint32_t slotIntervalMs)
+{
+    if (m_IsRunning)
+    {
         elog_e("SlotManager", "Cannot configure while running");
         return false;
     }
 
-    if (deviceSlotCount == 0 || totalSlotCount == 0 || slotIntervalMs == 0) {
+    if (deviceSlotCount == 0 || totalSlotCount == 0 || slotIntervalMs == 0)
+    {
         elog_e("SlotManager", "Invalid configuration parameters");
         return false;
     }
 
-    if (startSlot >= totalSlotCount) {
+    if (startSlot >= totalSlotCount)
+    {
         elog_e("SlotManager", "Start slot %d exceeds total slots %d", startSlot, totalSlotCount);
         return false;
     }
 
-    if (startSlot + deviceSlotCount > totalSlotCount) {
+    if (startSlot + deviceSlotCount > totalSlotCount)
+    {
         elog_e("SlotManager", "Device slots exceed total slots");
         return false;
     }
 
-    startSlot_ = startSlot;
-    deviceSlotCount_ = deviceSlotCount;
-    totalSlotCount_ = totalSlotCount;
-    slotIntervalMs_ = slotIntervalMs;
-    isConfigured_ = true;
+    m_StartSlot = startSlot;
+    m_DeviceSlotCount = deviceSlotCount;
+    m_TotalSlotCount = totalSlotCount;
+    m_SlotIntervalMs = slotIntervalMs;
+    m_IsConfigured = true;
 
     // 初始化时隙信息
-    currentSlotInfo_.totalSlots = totalSlotCount_;
-    currentSlotInfo_.slotIntervalMs = slotIntervalMs_;
+    m_CurrentSlotInfo.totalSlots = m_TotalSlotCount;
+    m_CurrentSlotInfo.slotIntervalMs = m_SlotIntervalMs;
 
-    elog_i("SlotManager", "Configured - Start: %d, Count: %d, Total: %d, Interval: %dms",
-           startSlot_, deviceSlotCount_, totalSlotCount_, slotIntervalMs_);
+    elog_i("SlotManager", "Configured - Start: %d, Count: %d, Total: %d, Interval: %dms", startSlot_, deviceSlotCount_,
+           totalSlotCount_, slotIntervalMs_);
 
     return true;
 }
 
-bool SlotManager::start() {
-    if (!isConfigured_) {
+bool SlotManager::Start()
+{
+    if (!m_IsConfigured)
+    {
         elog_e("SlotManager", "Cannot start - not configured");
         return false;
     }
 
-    if (isRunning_) {
+    if (m_IsRunning)
+    {
         elog_w("SlotManager", "Already running");
         return true;
     }
 
-    isRunning_ = true;
-    isFirstProcess_ = true;  // 标记为第一次process调用
-    
+    m_IsRunning = true;
+    m_IsFirstProcess = true; // 标记为第一次process调用
+
     // 记录时隙调度开始的绝对时间
-    startTimeUs_ = getCurrentSyncTimeUs();
-    lastSlotTimeUs_ = startTimeUs_;
-    
+    m_StartTimeUs = GetCurrentSyncTimeUs();
+    m_LastSlotTimeUs = m_StartTimeUs;
+
     // 设置初始时隙为0，但不立即触发回调
-    currentSlotInfo_.currentSlot = 0;
-    currentSlotInfo_.slotType = calculateSlotType(0);
-    currentSlotInfo_.totalSlots = totalSlotCount_;
-    currentSlotInfo_.slotIntervalMs = slotIntervalMs_;
-    
-    if (currentSlotInfo_.slotType == SlotType::ACTIVE) {
+    m_CurrentSlotInfo.currentSlot = 0;
+    m_CurrentSlotInfo.slotType = CalculateSlotType(0);
+    m_CurrentSlotInfo.totalSlots = m_TotalSlotCount;
+    m_CurrentSlotInfo.slotIntervalMs = m_SlotIntervalMs;
+
+    if (m_CurrentSlotInfo.slotType == SlotType::ACTIVE)
+    {
         // 计算激活的引脚编号（逻辑引脚）
-        currentSlotInfo_.activePin = 0 - startSlot_;
+        m_CurrentSlotInfo.activePin = 0 - m_StartSlot;
         elog_v("SlotManager", "Initial ACTIVE slot 0, pin %d", currentSlotInfo_.activePin);
-    } else {
-        currentSlotInfo_.activePin = 0xFF; // 无效引脚
+    }
+    else
+    {
+        m_CurrentSlotInfo.activePin = 0xFF; // 无效引脚
         elog_v("SlotManager", "Initial INACTIVE slot 0");
     }
 
@@ -90,102 +95,120 @@ bool SlotManager::start() {
     return true;
 }
 
-void SlotManager::stop() {
-    if (!isRunning_) {
+void SlotManager::Stop()
+{
+    if (!m_IsRunning)
+    {
         return;
     }
 
-    isRunning_ = false;
+    m_IsRunning = false;
     elog_i("SlotManager", "Stopped slot management");
 }
 
-void SlotManager::process() {
-    if (!isRunning_) {
+void SlotManager::Process()
+{
+    if (!m_IsRunning)
+    {
         return;
     }
 
     // 如果是第一次process调用，立即处理第0个时隙
-    if (isFirstProcess_) {
-        isFirstProcess_ = false;
+    if (m_IsFirstProcess)
+    {
+        m_IsFirstProcess = false;
         // 立即触发第0个时隙的处理
-        if (slotCallback_) {
-            slotCallback_(currentSlotInfo_);
+        if (m_SlotCallback)
+        {
+            m_SlotCallback(m_CurrentSlotInfo);
         }
         elog_v("SlotManager", "First process call, handled slot 0");
         return;
     }
 
-    uint64_t currentTimeUs = getCurrentSyncTimeUs();
-    uint64_t slotIntervalUs = slotIntervalMs_ * 1000ULL;
-    
+    uint64_t currentTimeUs = GetCurrentSyncTimeUs();
+    uint64_t slotIntervalUs = m_SlotIntervalMs * 1000ULL;
+
     // 基于绝对时间计算当前应该处于哪个时隙
-    uint64_t elapsedFromStartUs = currentTimeUs - startTimeUs_;
-    uint16_t expectedSlot = (elapsedFromStartUs / slotIntervalUs) % totalSlotCount_;
-    
+    uint64_t elapsedFromStartUs = currentTimeUs - m_StartTimeUs;
+    uint16_t expectedSlot = (elapsedFromStartUs / slotIntervalUs) % m_TotalSlotCount;
+
     // 检查是否需要切换到新的时隙
-    if (expectedSlot != currentSlotInfo_.currentSlot) {
+    if (expectedSlot != m_CurrentSlotInfo.currentSlot)
+    {
         // 可能跳过了多个时隙，直接切换到正确的时隙
-        switchToSlot(expectedSlot);
-        
+        SwitchToSlot(expectedSlot);
+
         // 计算这个时隙的理论开始时间（避免累积误差）
         uint64_t slotCycles = elapsedFromStartUs / slotIntervalUs;
-        lastSlotTimeUs_ = startTimeUs_ + slotCycles * slotIntervalUs;
-        
-        elog_v("SlotManager", "Absolute time sync - Expected slot: %d, Elapsed: %lu us", 
-               expectedSlot, (unsigned long)elapsedFromStartUs);
+        m_LastSlotTimeUs = m_StartTimeUs + slotCycles * slotIntervalUs;
+
+        elog_v("SlotManager", "Absolute time sync - Expected slot: %d, Elapsed: %lu us", expectedSlot,
+               (unsigned long)elapsedFromStartUs);
     }
 }
 
-void SlotManager::setSlotCallback(SlotCallback callback) {
-    slotCallback_ = callback;
+void SlotManager::SetSlotCallback(SlotCallback callback)
+{
+    m_SlotCallback = callback;
 }
 
-void SlotManager::setSyncTimeCallback(SyncTimeCallback callback) {
-    syncTimeCallback_ = callback;
+void SlotManager::SetSyncTimeCallback(SyncTimeCallback callback)
+{
+    m_SyncTimeCallback = callback;
 }
 
-uint8_t SlotManager::getCurrentActivePin() const {
-    if (currentSlotInfo_.slotType == SlotType::ACTIVE) {
-        return currentSlotInfo_.activePin;
+uint8_t SlotManager::GetCurrentActivePin() const
+{
+    if (m_CurrentSlotInfo.slotType == SlotType::ACTIVE)
+    {
+        return m_CurrentSlotInfo.activePin;
     }
     return 0xFF; // 无效引脚号
 }
 
-uint64_t SlotManager::getCurrentSyncTimeUs() {
-    if (syncTimeCallback_) {
-        return syncTimeCallback_();
+uint64_t SlotManager::GetCurrentSyncTimeUs()
+{
+    if (m_SyncTimeCallback)
+    {
+        return m_SyncTimeCallback();
     }
     // 如果没有同步时间回调，使用本地时间
-    return hal_hptimer_get_us();
+    return HptimerGetUs();
 }
 
-SlotType SlotManager::calculateSlotType(uint16_t slotNumber) {
+SlotType SlotManager::CalculateSlotType(uint16_t slotNumber)
+{
     // 检查是否在本设备的时隙范围内
-    if (slotNumber >= startSlot_ && slotNumber < startSlot_ + deviceSlotCount_) {
+    if (slotNumber >= m_StartSlot && slotNumber < m_StartSlot + m_DeviceSlotCount)
+    {
         return SlotType::ACTIVE;
     }
     return SlotType::INACTIVE;
 }
 
-void SlotManager::switchToSlot(uint16_t newSlot) {
-    currentSlotInfo_.currentSlot = newSlot;
-    currentSlotInfo_.slotType = calculateSlotType(newSlot);
-    
-    if (currentSlotInfo_.slotType == SlotType::ACTIVE) {
+void SlotManager::SwitchToSlot(uint16_t newSlot)
+{
+    m_CurrentSlotInfo.currentSlot = newSlot;
+    m_CurrentSlotInfo.slotType = CalculateSlotType(newSlot);
+
+    if (m_CurrentSlotInfo.slotType == SlotType::ACTIVE)
+    {
         // 计算激活的引脚编号（逻辑引脚）
-        currentSlotInfo_.activePin = newSlot - startSlot_;
+        m_CurrentSlotInfo.activePin = newSlot - m_StartSlot;
         // 只在调试模式下输出详细日志，减少日志量
-        elog_v("SlotManager", "Switched to ACTIVE slot %d, pin %d", 
-               newSlot, currentSlotInfo_.activePin);
-    } else {
-        currentSlotInfo_.activePin = 0xFF; // 无效引脚
+        elog_v("SlotManager", "Switched to ACTIVE slot %d, pin %d", newSlot, currentSlotInfo_.activePin);
+    }
+    else
+    {
+        m_CurrentSlotInfo.activePin = 0xFF; // 无效引脚
         // 只在调试模式下输出详细日志，减少日志量
-        elog_v("SlotManager", "Switched to INACTIVE slot %d", 
-               newSlot);
+        elog_v("SlotManager", "Switched to INACTIVE slot %d", newSlot);
     }
 
     // 触发回调
-    if (slotCallback_) {
-        slotCallback_(currentSlotInfo_);
+    if (m_SlotCallback)
+    {
+        m_SlotCallback(m_CurrentSlotInfo);
     }
 }

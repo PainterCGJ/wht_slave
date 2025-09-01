@@ -2,25 +2,29 @@
 
 #include "button.h"
 
-#ifndef LOCKSTATE_DEFINED
-#define LOCKSTATE_DEFINED
-enum class LockState { Unlocked, Locked };
+#ifndef LOCKCONTROLLER_HPP
+#define LOCKCONTROLLER_HPP
+enum class LockState
+{
+    Unlocked,
+    Locked
+};
 #endif
 
-class LockController {
-   public:
-    LockController(const char* name, HalButton& keyButton,
-                   HalButton& unlockButton, HalValve& lockValve);
+class LockController
+{
+  public:
+    LockController(const char *name, HalButton &keyButton, HalButton &unlockButton, HalValve &lockValve);
 
-    void update();
-    void reset();  // 复位函数：解锁并关闭阀门
-    LockState getState() const;
-    const char* getName() const;
+    void Update();
+    void Reset(); // 复位函数：解锁并关闭阀门
+    LockState GetState() const;
+    const char *GetName() const;
 
-   private:
-    const char* name;
-    HalButton& keyButton;       // 钥匙按钮传感器
-    HalButton& unlockButton;    // 解锁按钮
-    HalValve& lockValve;        // 锁控制阀门
-    LockState state;
+  private:
+    const char *m_Name;
+    HalButton &m_KeyButton;    // 钥匙按钮传感器
+    HalButton &m_UnlockButton; // 解锁按钮
+    HalValve &m_LockValve;     // 锁控制阀门
+    LockState m_State;
 };
