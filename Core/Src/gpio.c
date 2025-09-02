@@ -22,7 +22,6 @@
 #include "gpio.h"
 
 /* USER CODE BEGIN 0 */
-#include "elog.h"
 
 extern void uwb_int_handler_wrapper(void);
 /* USER CODE END 0 */

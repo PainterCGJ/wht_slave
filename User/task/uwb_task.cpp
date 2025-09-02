@@ -227,6 +227,7 @@ static void uwb_comm_task(void *argument)
                 // 发送UWB数据
                 std::vector<uint8_t> tx_data(tx_msg.data, tx_msg.data + tx_msg.data_len);
                 elog_i(TAG, "tx begin");
+                uwb.update();
                 uwb.data_transmit(tx_data);
                 // 发送完成后重新启动接收
                 // uwb.set_recv_mode();

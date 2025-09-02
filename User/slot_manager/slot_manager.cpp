@@ -46,8 +46,8 @@ bool SlotManager::Configure(uint16_t startSlot, uint8_t deviceSlotCount, uint16_
     m_CurrentSlotInfo.totalSlots = m_TotalSlotCount;
     m_CurrentSlotInfo.slotIntervalMs = m_SlotIntervalMs;
 
-    elog_i("SlotManager", "Configured - Start: %d, Count: %d, Total: %d, Interval: %dms", startSlot_, deviceSlotCount_,
-           totalSlotCount_, slotIntervalMs_);
+    elog_i("SlotManager", "Configured - Start: %d, Count: %d, Total: %d, Interval: %dms", startSlot, deviceSlotCount,
+           totalSlotCount, slotIntervalMs);
 
     return true;
 }
@@ -83,7 +83,7 @@ bool SlotManager::Start()
     {
         // 计算激活的引脚编号（逻辑引脚）
         m_CurrentSlotInfo.activePin = 0 - m_StartSlot;
-        elog_v("SlotManager", "Initial ACTIVE slot 0, pin %d", currentSlotInfo_.activePin);
+        elog_v("SlotManager", "Initial ACTIVE slot 0, pin %d", m_CurrentSlotInfo.activePin);
     }
     else
     {
@@ -197,7 +197,7 @@ void SlotManager::SwitchToSlot(uint16_t newSlot)
         // 计算激活的引脚编号（逻辑引脚）
         m_CurrentSlotInfo.activePin = newSlot - m_StartSlot;
         // 只在调试模式下输出详细日志，减少日志量
-        elog_v("SlotManager", "Switched to ACTIVE slot %d, pin %d", newSlot, currentSlotInfo_.activePin);
+        elog_v("SlotManager", "Switched to ACTIVE slot %d, pin %d", newSlot, m_CurrentSlotInfo.activePin);
     }
     else
     {

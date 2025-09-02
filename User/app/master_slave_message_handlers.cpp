@@ -25,10 +25,10 @@ std::unique_ptr<Message> SyncMessageHandler::processMessage(const Message &messa
     // 存储时间偏移量用于后续采集任务
     device->timeOffset = timeOffset;
 
-    elog_v("SyncMessageHandler",
-           "Time synchronization completed - Local: %lu us, Master: %lu us, "
-           "Offset: %ld us",
-           (unsigned long)localTimestamp, (unsigned long)syncMsg->timestamp, (long)timeOffset);
+    elog_i("SyncMessageHandler",
+           "Local: %lu us, Master: %lu us, "
+           "Offset: %lu us",
+           (unsigned long)localTimestamp, (unsigned long)syncMsg->timestamp, (unsigned long)timeOffset);
 
     return nullptr;
 }

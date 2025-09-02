@@ -13,17 +13,30 @@
 
 #define UWB_GENERAL_TIMEOUT_MS 2000
 
-template <class Interface>
-class CX310 {
-   public:
-    explicit CX310() : interface() {}
-    explicit CX310(const Interface& i) : interface(i) { __init(); }
+template <class Interface> class CX310
+{
+  public:
+    explicit CX310() : interface()
+    {
+    }
+    explicit CX310(const Interface &i) : interface(i)
+    {
+        __init();
+    }
 
-    ~CX310() {}
+    ~CX310()
+    {
+    }
 
-   private:
-    constexpr static const char* TAG = "CX310";
-    enum UwbsSTA : uint8_t { BOOT = 0, READY, ACTIVE, ERROR };
+  private:
+    constexpr static const char *TAG = "CX310";
+    enum UwbsSTA : uint8_t
+    {
+        BOOT = 0,
+        READY,
+        ACTIVE,
+        ERROR
+    };
 
     Interface interface;
     UwbsSTA uwbs_sta = BOOT;
@@ -38,34 +51,39 @@ class CX310 {
     std::queue<uint8_t, std::deque<uint8_t>> transparent_data;
     uint8_t _data;
 
-    std::function<bool(const UciCtrlPacket&)> check_rsp = nullptr;
+    std::function<bool(const UciCtrlPacket &)> check_rsp = nullptr;
     std::function<bool()> cmd_packer = nullptr;
     bool uwb_tx_done;
 
     /**
      * @brief 初始化
      */
-   public:
+  public:
     // 获取interface实例，用于中断处理
-    Interface& get_interface() { return interface; }
+    Interface &get_interface()
+    {
+        return interface;
+    }
     /**
      * @brief 初始化
      * @return 初始化成功返回true，失败返回false
      */
-    bool reset(uint16_t timeout_ms = UWB_GENERAL_TIMEOUT_MS) {
+    bool reset(uint16_t timeout_ms = UWB_GENERAL_TIMEOUT_MS)
+    {
         uwbs_sta = BOOT;
         uci_cmd.core_device_reset();
-        check_rsp = [this](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_device_reset_rsp(rsp);
-        };
+        check_rsp = [this](const UciCtrlPacket &rsp) { return uci_cmd.check_core_device_reset_rsp(rsp); };
 
         cmd_packer = [this]() { return uci_cmd.core_device_reset(); };
 
-        if (__send_packet()) {
+        if (__send_packet())
+        {
             uint32_t start_tick = interface.get_system_1ms_ticks();
-            while (interface.get_system_1ms_ticks() - start_tick < timeout_ms) {
+            while (interface.get_system_1ms_ticks() - start_tick < timeout_ms)
+            {
                 update();
-                if (uwbs_sta == READY) {
+                if (uwbs_sta == READY)
+                {
                     elog_v(TAG, "software reset successfully");
                     return true;
                 }
@@ -78,9 +96,11 @@ class CX310 {
         interface.delay_ms(100);
         interface.turn_of_reset_signal();
         uint32_t start_tick = interface.get_system_1ms_ticks();
-        while (interface.get_system_1ms_ticks() - start_tick < timeout_ms) {
+        while (interface.get_system_1ms_ticks() - start_tick < timeout_ms)
+        {
             update();
-            if (uwbs_sta == READY) {
+            if (uwbs_sta == READY)
+            {
                 elog_i(TAG, "hardware reset successfully");
                 return true;
             }
@@ -89,18 +109,16 @@ class CX310 {
         return false;
     }
 
-    bool set_channel(uint8_t channel) {
-        if (!__check_rdy()) {
+    bool set_channel(uint8_t channel)
+    {
+        if (!__check_rdy())
+        {
             return false;
         }
-        cmd_packer = [this, &channel]() {
-            return uci_cmd.core_set_config(PARAM_CHANNEL_NUMBER_ID, 1,
-                                           &channel);
-        };
-        check_rsp = [this](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_set_config_rsp(rsp);
-        };
-        if (__send_packet()) {
+        cmd_packer = [this, &channel]() { return uci_cmd.core_set_config(PARAM_CHANNEL_NUMBER_ID, 1, &channel); };
+        check_rsp = [this](const UciCtrlPacket &rsp) { return uci_cmd.check_core_set_config_rsp(rsp); };
+        if (__send_packet())
+        {
             elog_v(TAG, "set channel %d", channel);
             return true;
         }
@@ -108,25 +126,27 @@ class CX310 {
         return false;
     }
 
-    bool get_channel(uint8_t& channel) {
+    bool get_channel(uint8_t &channel)
+    {
         uint8_t param_id;
         uint8_t val_len;
-        if (!__check_rdy()) {
+        if (!__check_rdy())
+        {
             return false;
         }
-        cmd_packer = [this]() {
-            return uci_cmd.core_get_config(PARAM_CHANNEL_NUMBER_ID);
+        cmd_packer = [this]() { return uci_cmd.core_get_config(PARAM_CHANNEL_NUMBER_ID); };
+        check_rsp = [this, &param_id, &val_len, &channel](const UciCtrlPacket &rsp) {
+            return uci_cmd.check_core_get_config_rsp(rsp, &param_id, &val_len, &channel);
         };
-        check_rsp = [this, &param_id, &val_len,
-                     &channel](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_get_config_rsp(rsp, &param_id, &val_len,
-                                                     &channel);
-        };
-        if (__send_packet()) {
-            if (param_id != PARAM_CHANNEL_NUMBER_ID) {
+        if (__send_packet())
+        {
+            if (param_id != PARAM_CHANNEL_NUMBER_ID)
+            {
                 elog_e(TAG, "get config id %d", param_id);
                 return false;
-            } else {
+            }
+            else
+            {
                 elog_v(TAG, "get channel %d", channel);
                 return true;
             }
@@ -135,17 +155,16 @@ class CX310 {
         return false;
     }
 
-    bool set_prf_mode(uint8_t prf_mode) {
-        if (!__check_rdy()) {
+    bool set_prf_mode(uint8_t prf_mode)
+    {
+        if (!__check_rdy())
+        {
             return false;
         }
-        cmd_packer = [this, &prf_mode]() {
-            return uci_cmd.core_set_config(PARAM_PRF_MODE_ID, 1, &prf_mode);
-        };
-        check_rsp = [this](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_set_config_rsp(rsp);
-        };
-        if (__send_packet()) {
+        cmd_packer = [this, &prf_mode]() { return uci_cmd.core_set_config(PARAM_PRF_MODE_ID, 1, &prf_mode); };
+        check_rsp = [this](const UciCtrlPacket &rsp) { return uci_cmd.check_core_set_config_rsp(rsp); };
+        if (__send_packet())
+        {
             elog_v(TAG, "set prf mode %d", prf_mode);
             return true;
         }
@@ -153,25 +172,27 @@ class CX310 {
         return false;
     }
 
-    bool get_prf_mode(uint8_t& prf_mode) {
+    bool get_prf_mode(uint8_t &prf_mode)
+    {
         uint8_t param_id;
         uint8_t val_len;
-        if (!__check_rdy()) {
+        if (!__check_rdy())
+        {
             return false;
         }
-        cmd_packer = [this]() {
-            return uci_cmd.core_get_config(PARAM_PRF_MODE_ID);
+        cmd_packer = [this]() { return uci_cmd.core_get_config(PARAM_PRF_MODE_ID); };
+        check_rsp = [this, &param_id, &val_len, &prf_mode](const UciCtrlPacket &rsp) {
+            return uci_cmd.check_core_get_config_rsp(rsp, &param_id, &val_len, &prf_mode);
         };
-        check_rsp = [this, &param_id, &val_len,
-                     &prf_mode](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_get_config_rsp(rsp, &param_id, &val_len,
-                                                     &prf_mode);
-        };
-        if (__send_packet()) {
-            if (param_id != PARAM_PRF_MODE_ID) {
+        if (__send_packet())
+        {
+            if (param_id != PARAM_PRF_MODE_ID)
+            {
                 elog_e(TAG, "get config id %d", param_id);
                 return false;
-            } else {
+            }
+            else
+            {
                 elog_v(TAG, "get prf mode %d", prf_mode);
                 return true;
             }
@@ -180,18 +201,18 @@ class CX310 {
         return false;
     }
 
-    bool set_preamble_length(uint8_t preamble_length) {
-        if (!__check_rdy()) {
+    bool set_preamble_length(uint8_t preamble_length)
+    {
+        if (!__check_rdy())
+        {
             return false;
         }
         cmd_packer = [this, &preamble_length]() {
-            return uci_cmd.core_set_config(PARAM_PREAMBLE_LENGTH_ID, 1,
-                                           &preamble_length);
+            return uci_cmd.core_set_config(PARAM_PREAMBLE_LENGTH_ID, 1, &preamble_length);
         };
-        check_rsp = [this](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_set_config_rsp(rsp);
-        };
-        if (__send_packet()) {
+        check_rsp = [this](const UciCtrlPacket &rsp) { return uci_cmd.check_core_set_config_rsp(rsp); };
+        if (__send_packet())
+        {
             elog_v(TAG, "set preamble length %d", preamble_length);
             return true;
         }
@@ -199,25 +220,27 @@ class CX310 {
         return false;
     }
 
-    bool get_preamble_length(uint8_t& preamble_length) {
+    bool get_preamble_length(uint8_t &preamble_length)
+    {
         uint8_t param_id;
         uint8_t val_len;
-        if (!__check_rdy()) {
+        if (!__check_rdy())
+        {
             return false;
         }
-        cmd_packer = [this]() {
-            return uci_cmd.core_get_config(PARAM_PREAMBLE_LENGTH_ID);
+        cmd_packer = [this]() { return uci_cmd.core_get_config(PARAM_PREAMBLE_LENGTH_ID); };
+        check_rsp = [this, &param_id, &val_len, &preamble_length](const UciCtrlPacket &rsp) {
+            return uci_cmd.check_core_get_config_rsp(rsp, &param_id, &val_len, &preamble_length);
         };
-        check_rsp = [this, &param_id, &val_len,
-                     &preamble_length](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_get_config_rsp(rsp, &param_id, &val_len,
-                                                     &preamble_length);
-        };
-        if (__send_packet()) {
-            if (param_id != PARAM_PREAMBLE_LENGTH_ID) {
+        if (__send_packet())
+        {
+            if (param_id != PARAM_PREAMBLE_LENGTH_ID)
+            {
                 elog_e(TAG, "get config id %d", param_id);
                 return false;
-            } else {
+            }
+            else
+            {
                 elog_v(TAG, "get preamble length %d", preamble_length);
                 return true;
             }
@@ -226,18 +249,18 @@ class CX310 {
         return false;
     }
 
-    bool set_preamble_index(uint8_t preamble_index) {
-        if (!__check_rdy()) {
+    bool set_preamble_index(uint8_t preamble_index)
+    {
+        if (!__check_rdy())
+        {
             return false;
         }
         cmd_packer = [this, &preamble_index]() {
-            return uci_cmd.core_set_config(PARAM_PREAMBLE_CODE_INDEX_ID, 1,
-                                           &preamble_index);
+            return uci_cmd.core_set_config(PARAM_PREAMBLE_CODE_INDEX_ID, 1, &preamble_index);
         };
-        check_rsp = [this](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_set_config_rsp(rsp);
-        };
-        if (__send_packet()) {
+        check_rsp = [this](const UciCtrlPacket &rsp) { return uci_cmd.check_core_set_config_rsp(rsp); };
+        if (__send_packet())
+        {
             elog_v(TAG, "set preamble index %d", preamble_index);
             return true;
         }
@@ -245,25 +268,27 @@ class CX310 {
         return false;
     }
 
-    bool get_preamble_index(uint8_t& preamble_index) {
+    bool get_preamble_index(uint8_t &preamble_index)
+    {
         uint8_t param_id;
         uint8_t val_len;
-        if (!__check_rdy()) {
+        if (!__check_rdy())
+        {
             return false;
         }
-        cmd_packer = [this]() {
-            return uci_cmd.core_get_config(PARAM_PREAMBLE_CODE_INDEX_ID);
+        cmd_packer = [this]() { return uci_cmd.core_get_config(PARAM_PREAMBLE_CODE_INDEX_ID); };
+        check_rsp = [this, &param_id, &val_len, &preamble_index](const UciCtrlPacket &rsp) {
+            return uci_cmd.check_core_get_config_rsp(rsp, &param_id, &val_len, &preamble_index);
         };
-        check_rsp = [this, &param_id, &val_len,
-                     &preamble_index](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_get_config_rsp(rsp, &param_id, &val_len,
-                                                     &preamble_index);
-        };
-        if (__send_packet()) {
-            if (param_id != PARAM_PREAMBLE_CODE_INDEX_ID) {
+        if (__send_packet())
+        {
+            if (param_id != PARAM_PREAMBLE_CODE_INDEX_ID)
+            {
                 elog_e(TAG, "get config id %d", param_id);
                 return false;
-            } else {
+            }
+            else
+            {
                 elog_v(TAG, "get preamble index %d", preamble_index);
                 return true;
             }
@@ -272,18 +297,18 @@ class CX310 {
         return false;
     }
 
-    bool set_psdu_data_rate(uint8_t psdu_data_rate) {
-        if (!__check_rdy()) {
+    bool set_psdu_data_rate(uint8_t psdu_data_rate)
+    {
+        if (!__check_rdy())
+        {
             return false;
         }
         cmd_packer = [this, &psdu_data_rate]() {
-            return uci_cmd.core_set_config(PARAM_PSDU_DATA_RATE_ID, 1,
-                                           &psdu_data_rate);
+            return uci_cmd.core_set_config(PARAM_PSDU_DATA_RATE_ID, 1, &psdu_data_rate);
         };
-        check_rsp = [this](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_set_config_rsp(rsp);
-        };
-        if (__send_packet()) {
+        check_rsp = [this](const UciCtrlPacket &rsp) { return uci_cmd.check_core_set_config_rsp(rsp); };
+        if (__send_packet())
+        {
             elog_v(TAG, "set psdu data rate %d", psdu_data_rate);
             return true;
         }
@@ -291,25 +316,27 @@ class CX310 {
         return false;
     }
 
-    bool get_psdu_data_rate(uint8_t& psdu_data_rate) {
+    bool get_psdu_data_rate(uint8_t &psdu_data_rate)
+    {
         uint8_t param_id;
         uint8_t val_len;
-        if (!__check_rdy()) {
+        if (!__check_rdy())
+        {
             return false;
         }
-        cmd_packer = [this]() {
-            return uci_cmd.core_get_config(PARAM_PSDU_DATA_RATE_ID);
+        cmd_packer = [this]() { return uci_cmd.core_get_config(PARAM_PSDU_DATA_RATE_ID); };
+        check_rsp = [this, &param_id, &val_len, &psdu_data_rate](const UciCtrlPacket &rsp) {
+            return uci_cmd.check_core_get_config_rsp(rsp, &param_id, &val_len, &psdu_data_rate);
         };
-        check_rsp = [this, &param_id, &val_len,
-                     &psdu_data_rate](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_get_config_rsp(rsp, &param_id, &val_len,
-                                                     &psdu_data_rate);
-        };
-        if (__send_packet()) {
-            if (param_id != PARAM_PSDU_DATA_RATE_ID) {
+        if (__send_packet())
+        {
+            if (param_id != PARAM_PSDU_DATA_RATE_ID)
+            {
                 elog_e(TAG, "get config id %d", param_id);
                 return false;
-            } else {
+            }
+            else
+            {
                 elog_v(TAG, "get psdu data rate %d", psdu_data_rate);
                 return true;
             }
@@ -318,42 +345,43 @@ class CX310 {
         return false;
     }
 
-    bool set_phr_mode(uint8_t phr_mode) {
-        if (!__check_rdy()) {
+    bool set_phr_mode(uint8_t phr_mode)
+    {
+        if (!__check_rdy())
+        {
             return false;
         }
-        cmd_packer = [this, &phr_mode]() {
-            return uci_cmd.core_set_config(PARAM_PHR_MODE_ID, 1, &phr_mode);
-        };
-        check_rsp = [this](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_set_config_rsp(rsp);
-        };
-        if (__send_packet()) {
+        cmd_packer = [this, &phr_mode]() { return uci_cmd.core_set_config(PARAM_PHR_MODE_ID, 1, &phr_mode); };
+        check_rsp = [this](const UciCtrlPacket &rsp) { return uci_cmd.check_core_set_config_rsp(rsp); };
+        if (__send_packet())
+        {
             elog_v(TAG, "set phr mode %d", phr_mode);
             return true;
         }
         elog_e(TAG, "set phr mode fail");
         return false;
     }
-    bool get_phr_mode(uint8_t& phr_mode) {
+    bool get_phr_mode(uint8_t &phr_mode)
+    {
         uint8_t param_id;
         uint8_t val_len;
-        if (!__check_rdy()) {
+        if (!__check_rdy())
+        {
             return false;
         }
-        cmd_packer = [this]() {
-            return uci_cmd.core_get_config(PARAM_PHR_MODE_ID);
+        cmd_packer = [this]() { return uci_cmd.core_get_config(PARAM_PHR_MODE_ID); };
+        check_rsp = [this, &param_id, &val_len, &phr_mode](const UciCtrlPacket &rsp) {
+            return uci_cmd.check_core_get_config_rsp(rsp, &param_id, &val_len, &phr_mode);
         };
-        check_rsp = [this, &param_id, &val_len,
-                     &phr_mode](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_get_config_rsp(rsp, &param_id, &val_len,
-                                                     &phr_mode);
-        };
-        if (__send_packet()) {
-            if (param_id != PARAM_PHR_MODE_ID) {
+        if (__send_packet())
+        {
+            if (param_id != PARAM_PHR_MODE_ID)
+            {
                 elog_e(TAG, "get config id %d", param_id);
                 return false;
-            } else {
+            }
+            else
+            {
                 elog_v(TAG, "get phr mode %d", phr_mode);
                 return true;
             }
@@ -361,17 +389,16 @@ class CX310 {
         elog_e(TAG, "get phr mode fail");
         return false;
     }
-    bool set_sfd_id(uint8_t sfd_id) {
-        if (!__check_rdy()) {
+    bool set_sfd_id(uint8_t sfd_id)
+    {
+        if (!__check_rdy())
+        {
             return false;
         }
-        cmd_packer = [this, &sfd_id]() {
-            return uci_cmd.core_set_config(PARAM_SFD_ID_ID, 1, &sfd_id);
-        };
-        check_rsp = [this](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_set_config_rsp(rsp);
-        };
-        if (__send_packet()) {
+        cmd_packer = [this, &sfd_id]() { return uci_cmd.core_set_config(PARAM_SFD_ID_ID, 1, &sfd_id); };
+        check_rsp = [this](const UciCtrlPacket &rsp) { return uci_cmd.check_core_set_config_rsp(rsp); };
+        if (__send_packet())
+        {
             elog_v(TAG, "set sfd id %d", sfd_id);
             return true;
         }
@@ -379,25 +406,27 @@ class CX310 {
         return false;
     }
 
-    bool get_sfd_id(uint8_t& sfd_id) {
+    bool get_sfd_id(uint8_t &sfd_id)
+    {
         uint8_t param_id;
         uint8_t val_len;
-        if (!__check_rdy()) {
+        if (!__check_rdy())
+        {
             return false;
         }
-        cmd_packer = [this]() {
-            return uci_cmd.core_get_config(PARAM_SFD_ID_ID);
+        cmd_packer = [this]() { return uci_cmd.core_get_config(PARAM_SFD_ID_ID); };
+        check_rsp = [this, &param_id, &val_len, &sfd_id](const UciCtrlPacket &rsp) {
+            return uci_cmd.check_core_get_config_rsp(rsp, &param_id, &val_len, &sfd_id);
         };
-        check_rsp = [this, &param_id, &val_len,
-                     &sfd_id](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_get_config_rsp(rsp, &param_id, &val_len,
-                                                     &sfd_id);
-        };
-        if (__send_packet()) {
-            if (param_id != PARAM_SFD_ID_ID) {
+        if (__send_packet())
+        {
+            if (param_id != PARAM_SFD_ID_ID)
+            {
                 elog_e(TAG, "get config id %d", param_id);
                 return false;
-            } else {
+            }
+            else
+            {
                 elog_v(TAG, "get sfd id %d", sfd_id);
                 return true;
             }
@@ -406,17 +435,16 @@ class CX310 {
         return false;
     }
 
-    bool set_tx_power(uint8_t tx_power) {
-        if (!__check_rdy()) {
+    bool set_tx_power(uint8_t tx_power)
+    {
+        if (!__check_rdy())
+        {
             return false;
         }
-        cmd_packer = [this, &tx_power]() {
-            return uci_cmd.core_set_config(PARAM_TX_POWER_ID, 1, &tx_power);
-        };
-        check_rsp = [this](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_set_config_rsp(rsp);
-        };
-        if (__send_packet()) {
+        cmd_packer = [this, &tx_power]() { return uci_cmd.core_set_config(PARAM_TX_POWER_ID, 1, &tx_power); };
+        check_rsp = [this](const UciCtrlPacket &rsp) { return uci_cmd.check_core_set_config_rsp(rsp); };
+        if (__send_packet())
+        {
             elog_v(TAG, "set tx power %d", tx_power);
             return true;
         }
@@ -424,15 +452,16 @@ class CX310 {
         return false;
     }
 
-    bool set_hprf() {
-        if (!__check_rdy()) {
+    bool set_hprf()
+    {
+        if (!__check_rdy())
+        {
             return false;
         }
         cmd_packer = [this]() { return uci_cmd.cx_set_hprf(); };
-        check_rsp = [this](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_cx_set_hprf_rsp(rsp);
-        };
-        if (__send_packet()) {
+        check_rsp = [this](const UciCtrlPacket &rsp) { return uci_cmd.check_cx_set_hprf_rsp(rsp); };
+        if (__send_packet())
+        {
             elog_v(TAG, "set hprf");
             return true;
         }
@@ -440,17 +469,16 @@ class CX310 {
         return false;
     }
 
-    bool set_auto_recv_en(uint8_t en) {
-        if (!__check_rdy()) {
+    bool set_auto_recv_en(uint8_t en)
+    {
+        if (!__check_rdy())
+        {
             return false;
         }
-        cmd_packer = [this, &en]() {
-            return uci_cmd.core_set_config(PARAM_CX_AUTO_RX_EN_ID, 1, &en);
-        };
-        check_rsp = [this](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_set_config_rsp(rsp);
-        };
-        if (__send_packet()) {
+        cmd_packer = [this, &en]() { return uci_cmd.core_set_config(PARAM_CX_AUTO_RX_EN_ID, 1, &en); };
+        check_rsp = [this](const UciCtrlPacket &rsp) { return uci_cmd.check_core_set_config_rsp(rsp); };
+        if (__send_packet())
+        {
             elog_i(TAG, " set auto recv %d", en);
             return true;
         }
@@ -458,21 +486,22 @@ class CX310 {
         return false;
     }
 
-    bool get_auto_recv_en(uint8_t& en) {
+    bool get_auto_recv_en(uint8_t &en)
+    {
         uint8_t param_id;
         uint8_t val_len;
-        if (!__check_rdy()) {
+        if (!__check_rdy())
+        {
             return false;
         }
-        cmd_packer = [this]() {
-            return uci_cmd.core_get_config(PARAM_CX_AUTO_RX_EN_ID);
+        cmd_packer = [this]() { return uci_cmd.core_get_config(PARAM_CX_AUTO_RX_EN_ID); };
+        check_rsp = [this, &param_id, &val_len, &en](const UciCtrlPacket &rsp) {
+            return uci_cmd.check_core_get_config_rsp(rsp, &param_id, &val_len, &en);
         };
-        check_rsp = [this, &param_id, &val_len, &en](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_get_config_rsp(rsp, &param_id, &val_len,
-                                                     &en);
-        };
-        if (__send_packet()) {
-            if (param_id != PARAM_CX_AUTO_RX_EN_ID) {
+        if (__send_packet())
+        {
+            if (param_id != PARAM_CX_AUTO_RX_EN_ID)
+            {
                 elog_e(TAG, " get config id %d", param_id);
                 return false;
             }
@@ -481,19 +510,18 @@ class CX310 {
         return true;
     }
 
-    bool set_recv_delay(uint32_t delay_us) {
-        if (!__check_rdy()) {
+    bool set_recv_delay(uint32_t delay_us)
+    {
+        if (!__check_rdy())
+        {
             return false;
         }
         cmd_packer = [this, &delay_us]() {
-            return uci_cmd.core_set_config(
-                PARAM_CX_RX_EN_DELAY_ID, 4,
-                reinterpret_cast<uint8_t*>(&delay_us));
+            return uci_cmd.core_set_config(PARAM_CX_RX_EN_DELAY_ID, 4, reinterpret_cast<uint8_t *>(&delay_us));
         };
-        check_rsp = [this](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_set_config_rsp(rsp);
-        };
-        if (__send_packet()) {
+        check_rsp = [this](const UciCtrlPacket &rsp) { return uci_cmd.check_core_set_config_rsp(rsp); };
+        if (__send_packet())
+        {
             elog_i(TAG, " set recv delay %d us", delay_us);
             return true;
         }
@@ -501,23 +529,22 @@ class CX310 {
         return false;
     }
 
-    bool get_recv_delay(uint32_t& delay_us) {
+    bool get_recv_delay(uint32_t &delay_us)
+    {
         uint8_t param_id;
         uint8_t val_len;
-        if (!__check_rdy()) {
+        if (!__check_rdy())
+        {
             return false;
         }
-        cmd_packer = [this]() {
-            return uci_cmd.core_get_config(PARAM_CX_RX_EN_DELAY_ID);
+        cmd_packer = [this]() { return uci_cmd.core_get_config(PARAM_CX_RX_EN_DELAY_ID); };
+        check_rsp = [this, &param_id, &val_len, &delay_us](const UciCtrlPacket &rsp) {
+            return uci_cmd.check_core_get_config_rsp(rsp, &param_id, &val_len, reinterpret_cast<uint8_t *>(&delay_us));
         };
-        check_rsp = [this, &param_id, &val_len,
-                     &delay_us](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_get_config_rsp(
-                rsp, &param_id, &val_len,
-                reinterpret_cast<uint8_t*>(&delay_us));
-        };
-        if (__send_packet()) {
-            if (param_id != PARAM_CX_RX_EN_DELAY_ID) {
+        if (__send_packet())
+        {
+            if (param_id != PARAM_CX_RX_EN_DELAY_ID)
+            {
                 elog_e(TAG, " get config id %d", param_id);
                 return false;
             }
@@ -526,19 +553,18 @@ class CX310 {
         return true;
     }
 
-    bool set_recv_timeout(uint32_t timeout_us) {
-        if (!__check_rdy()) {
+    bool set_recv_timeout(uint32_t timeout_us)
+    {
+        if (!__check_rdy())
+        {
             return false;
         }
         cmd_packer = [this, &timeout_us]() {
-            return uci_cmd.core_set_config(
-                PARAM_CX_RX_TIMEOUT_ID, 4,
-                reinterpret_cast<uint8_t*>(&timeout_us));
+            return uci_cmd.core_set_config(PARAM_CX_RX_TIMEOUT_ID, 4, reinterpret_cast<uint8_t *>(&timeout_us));
         };
-        check_rsp = [this](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_set_config_rsp(rsp);
-        };
-        if (__send_packet()) {
+        check_rsp = [this](const UciCtrlPacket &rsp) { return uci_cmd.check_core_set_config_rsp(rsp); };
+        if (__send_packet())
+        {
             elog_i(TAG, " set recv timeout %d us", timeout_us);
             return true;
         }
@@ -546,23 +572,23 @@ class CX310 {
         return false;
     }
 
-    bool get_recv_timeout(uint32_t& timeout_us) {
+    bool get_recv_timeout(uint32_t &timeout_us)
+    {
         uint8_t param_id;
         uint8_t val_len;
-        if (!__check_rdy()) {
+        if (!__check_rdy())
+        {
             return false;
         }
-        cmd_packer = [this]() {
-            return uci_cmd.core_get_config(PARAM_CX_RX_TIMEOUT_ID);
+        cmd_packer = [this]() { return uci_cmd.core_get_config(PARAM_CX_RX_TIMEOUT_ID); };
+        check_rsp = [this, &param_id, &val_len, &timeout_us](const UciCtrlPacket &rsp) {
+            return uci_cmd.check_core_get_config_rsp(rsp, &param_id, &val_len,
+                                                     reinterpret_cast<uint8_t *>(&timeout_us));
         };
-        check_rsp = [this, &param_id, &val_len,
-                     &timeout_us](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_core_get_config_rsp(
-                rsp, &param_id, &val_len,
-                reinterpret_cast<uint8_t*>(&timeout_us));
-        };
-        if (__send_packet()) {
-            if (param_id != PARAM_CX_RX_TIMEOUT_ID) {
+        if (__send_packet())
+        {
+            if (param_id != PARAM_CX_RX_TIMEOUT_ID)
+            {
                 elog_e(TAG, " get config id %d", param_id);
                 return false;
             }
@@ -571,15 +597,16 @@ class CX310 {
         return true;
     }
 
-    bool set_nooploop() {
-        if (!__check_rdy()) {
+    bool set_nooploop()
+    {
+        if (!__check_rdy())
+        {
             return false;
         }
         cmd_packer = [this]() { return uci_cmd.cx_nooploop(); };
-        check_rsp = [this](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_cx_nooploop_rsp(rsp);
-        };
-        if (__send_packet()) {
+        check_rsp = [this](const UciCtrlPacket &rsp) { return uci_cmd.check_cx_nooploop_rsp(rsp); };
+        if (__send_packet())
+        {
             elog_v(TAG, "set nooploop");
             return true;
         }
@@ -587,31 +614,34 @@ class CX310 {
         return false;
     }
 
-    bool get_config(uint8_t config_id, uint8_t* config_value, uint8_t length) {
+    bool get_config(uint8_t config_id, uint8_t *config_value, uint8_t length)
+    {
         return false;
     }
 
     /**
      * @brief 获取设备信息
      */
-    bool get_dev_info() {
-        if (uwbs_sta != READY) {
+    bool get_dev_info()
+    {
+        if (uwbs_sta != READY)
+        {
             elog_e(TAG, "UWBS not ready");
             return false;
         }
 
         UciCMD::UWBDeviceInfo dev_info;
         cmd_packer = [this]() { return uci_cmd.core_get_device_info(); };
-        check_rsp = [this, &dev_info](const UciCtrlPacket& rsp) {
+        check_rsp = [this, &dev_info](const UciCtrlPacket &rsp) {
             return uci_cmd.check_core_get_device_info_rsp(rsp, dev_info);
         };
 
-        if (__send_packet()) {
+        if (__send_packet())
+        {
             elog_v(TAG,
                    "uci generic version = 0x%.4X, mac version = 0x%.4X, "
                    "phy version = 0x%.4X , uci test version = 0x%.4X",
-                   dev_info.uci_ver, dev_info.mac_ver, dev_info.phy_ver,
-                   dev_info.uci_test_ver);
+                   dev_info.uci_ver, dev_info.mac_ver, dev_info.phy_ver, dev_info.uci_test_ver);
 
             // uint8_t vendor_len=;
             return true;
@@ -625,45 +655,51 @@ class CX310 {
      * @param data 发送数据
      * @return 发送成功返回true，失败返回false
      */
-    bool data_transmit(const std::vector<uint8_t>& data) {
-        if (!__check_rdy()) {
+    bool data_transmit(const std::vector<uint8_t> &data)
+    {
+        if (!__check_rdy())
+        {
             return false;
         }
 
-        if (data.size() == 0) {
+        if (data.size() == 0)
+        {
             return true;
         }
 
         cmd_packer = [this, &data]() { return uci_cmd.cx_app_data_tx(data); };
-        check_rsp = [this](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_cx_app_data_tx_rsp(rsp);
-        };
+        check_rsp = [this](const UciCtrlPacket &rsp) { return uci_cmd.check_cx_app_data_tx_rsp(rsp); };
 
-        if (__send_packet()) {
+        if (__send_packet())
+        {
             // elog_i(TAG, "data transmit");
             return true;
         }
         elog_e(TAG, "data transmit fail");
         return false;
     }
-    bool data_transmit_tx_test(std::vector<uint8_t> data, uint16_t pack_size,
-                               uint16_t pack_num) {
-        if (!__check_rdy()) {
+    bool data_transmit_tx_test(std::vector<uint8_t> data, uint16_t pack_size, uint16_t pack_num)
+    {
+        if (!__check_rdy())
+        {
             return false;
         }
 
         data.reserve(pack_size);
-        for (uint16_t i = 0; i < pack_size; i++) {
+        for (uint16_t i = 0; i < pack_size; i++)
+        {
             data.push_back(i % 0xff);
         }
 #define _CNT 2000
         int delay_cnt = _CNT;
-        for (uint16_t i = 0; i < pack_num; i++) {
+        for (uint16_t i = 0; i < pack_num; i++)
+        {
             data[0] = i & 0xff;
             data[1] = i >> 8;
             data_transmit(data);
 
-            while (delay_cnt--) {
+            while (delay_cnt--)
+            {
                 // __NOP();
             }
             delay_cnt = _CNT;
@@ -672,9 +708,10 @@ class CX310 {
         return true;
     }
 
-    bool data_transmit_rx_test(std::vector<uint8_t> data, uint16_t pack_size,
-                               uint16_t pack_num) {
-        if (!__check_rdy()) {
+    bool data_transmit_rx_test(std::vector<uint8_t> data, uint16_t pack_size, uint16_t pack_num)
+    {
+        if (!__check_rdy())
+        {
             return false;
         }
         uint16_t loss_pack = 0;
@@ -683,35 +720,42 @@ class CX310 {
         uint16_t recv_cnt = 0;
         uint16_t pack_id = 0;
         uint32_t start_tick = 0;
-        while (true) {
-            if (get_recv_data(data)) {
+        while (true)
+        {
+            if (get_recv_data(data))
+            {
                 pack_id = data[0] | (data[1] << 8);
-                if (!start_flag) {
-                    if (pack_id == 0) {
+                if (!start_flag)
+                {
+                    if (pack_id == 0)
+                    {
                         start_flag = true;
                         recv_cnt = 1;
                         start_tick = interface.get_system_1ms_ticks();
                     }
-                } else {
-                    if (pack_id < recv_cnt) {
-                        elog_e(TAG, "pack id = %u, recv_cnt = %u", pack_id,
-                               recv_cnt);
+                }
+                else
+                {
+                    if (pack_id < recv_cnt)
+                    {
+                        elog_e(TAG, "pack id = %u, recv_cnt = %u", pack_id, recv_cnt);
                         return false;
                     }
-                    if (pack_id != recv_cnt) {
+                    if (pack_id != recv_cnt)
+                    {
                         loss_pack += pack_id - recv_cnt;
                         recv_cnt = pack_id;
                     }
                     recv_cnt++;
                     // elog_v("UWB: recv recv_cnt = %d", recv_cnt);
-                    if (recv_cnt == pack_num) {
+                    if (recv_cnt == pack_num)
+                    {
                         time_ms = interface.get_system_1ms_ticks() - start_tick;
                         elog_v(TAG,
                                "data transmit rx test: transmit pack = "
                                "%u, loss pack = %u, "
                                "time = %ums, transmit data = %uB",
-                               pack_num, loss_pack, time_ms,
-                               pack_num * pack_size);
+                               pack_num, loss_pack, time_ms, pack_num * pack_size);
                         return true;
                     }
                 }
@@ -724,17 +768,18 @@ class CX310 {
      * @brief 设置接收模式
      * @return 设置成功返回true，失败返回false
      */
-    bool set_recv_mode() {
-        if (!__check_rdy()) {
+    bool set_recv_mode()
+    {
+        if (!__check_rdy())
+        {
             return false;
         }
 
         cmd_packer = [this]() { return uci_cmd.cx_app_data_rx(); };
-        check_rsp = [this](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_cx_app_data_rx_rsp(rsp);
-        };
+        check_rsp = [this](const UciCtrlPacket &rsp) { return uci_cmd.check_cx_app_data_rx_rsp(rsp); };
 
-        if (__send_packet()) {
+        if (__send_packet())
+        {
             elog_i(TAG, "set recv mode");
             return true;
         }
@@ -747,17 +792,21 @@ class CX310 {
      * @param recv_data 接收数据
      * @return 获取成功返回true，失败返回false
      */
-    bool get_recv_data(std::vector<uint8_t>& recv_data) {
+    bool get_recv_data(std::vector<uint8_t> &recv_data)
+    {
         update();
-        if (!__check_rdy()) {
+        if (!__check_rdy())
+        {
             return false;
         }
-        if (transparent_data.empty()) {
+        if (transparent_data.empty())
+        {
             return false;
         }
         recv_data.clear();
         recv_data.reserve(transparent_data.size());
-        while (transparent_data.empty() == false) {
+        while (transparent_data.empty() == false)
+        {
             recv_data.push_back(transparent_data.front());
             transparent_data.pop();
         }
@@ -768,15 +817,16 @@ class CX310 {
      * @brief 停止接收
      * @return 停止成功返回true，失败返回false
      */
-    bool stop_recv() {
-        if (!__check_rdy()) {
+    bool stop_recv()
+    {
+        if (!__check_rdy())
+        {
             return false;
         }
         cmd_packer = [this]() { return uci_cmd.cx_app_data_stop_rx(); };
-        check_rsp = [this](const UciCtrlPacket& rsp) {
-            return uci_cmd.check_cx_app_data_stop_rx_rsp(rsp);
-        };
-        if (__send_packet()) {
+        check_rsp = [this](const UciCtrlPacket &rsp) { return uci_cmd.check_cx_app_data_stop_rx_rsp(rsp); };
+        if (__send_packet())
+        {
             elog_v(TAG, "stop recv");
             return true;
         }
@@ -788,79 +838,97 @@ class CX310 {
      * @brief 更新，监听通知和更新状态机
      * @return 无
      */
-    void update() {
+    void update()
+    {
         __listening_ntf();
         __uwbs_state_machine();
     }
 
-    bool is_init_success() const { return init_success; }
+    bool is_init_success() const
+    {
+        return init_success;
+    }
 
-    bool init() {
+    bool init()
+    {
         __init();
-        init_success &=
-            set_channel(PARAM_CHANNEL_NUMBER_9);    // channel 5 // channel 5
-        init_success &=
-            set_phr_mode(PARAM_PHYDATARATE_DRHM_HR);    // PHR mode 4
-        init_success &= set_sfd_id(2);                  // SFD ID 3 // SFD ID 3
-        init_success &= set_prf_mode(PARAM_PRF_NOMINAL_64_M);    // PRF mode 3
-        init_success &= set_preamble_length(
-            PARAM_PREAMBLE_LEN_BPRF_64);          // preamble length 1
-        init_success &= set_preamble_index(9);    // preamble index 9
-        init_success &=
-            set_psdu_data_rate(PARAM_PSDU_DATA_RATE_7_8);    // PSDU data rate 4
+        init_success &= set_channel(PARAM_CHANNEL_NUMBER_9);             // channel 5 // channel 5
+        init_success &= set_phr_mode(PARAM_PHYDATARATE_DRHM_HR);         // PHR mode 4
+        init_success &= set_sfd_id(2);                                   // SFD ID 3 // SFD ID 3
+        init_success &= set_prf_mode(PARAM_PRF_NOMINAL_64_M);            // PRF mode 3
+        init_success &= set_preamble_length(PARAM_PREAMBLE_LEN_BPRF_64); // preamble length 1
+        init_success &= set_preamble_index(9);                           // preamble index 9
+        init_success &= set_psdu_data_rate(PARAM_PSDU_DATA_RATE_7_8);    // PSDU data rate 4
 
-        init_success &= set_recv_delay(1000);
-        init_success &= set_tx_power(3);    // TX power 5
+        init_success &= set_recv_delay(500);
+        init_success &= set_tx_power(3); // TX power 5
         // init_success &= set_auto_recv_en(1);
         return 0;
     }
 
-   private:
-    void __delay_ms(uint32_t ms) { interface.delay_ms(ms); }
-    bool __check_rdy() {
-        if (uwbs_sta == READY) {
+  private:
+    void __delay_ms(uint32_t ms)
+    {
+        interface.delay_ms(ms);
+    }
+    bool __check_rdy()
+    {
+        if (uwbs_sta == READY)
+        {
             return true;
         }
         // elog_e(TAG, "UWBS not ready");
         return false;
     }
-    void __uwbs_state_machine() {
-        switch (uwbs_sta) {
-            case BOOT: {
-                // elog_v("UWB: boot");
-                break;
-            }
-            case READY: {
-                // elog_v("UWB: ready");
-                break;
-            }
-            case ACTIVE: {
-                break;
-            }
-            case ERROR: {
-                break;
-            }
+    void __uwbs_state_machine()
+    {
+        switch (uwbs_sta)
+        {
+        case BOOT: {
+            // elog_v("UWB: boot");
+            break;
+        }
+        case READY: {
+            // elog_v("UWB: ready");
+            break;
+        }
+        case ACTIVE: {
+            break;
+        }
+        case ERROR: {
+            break;
+        }
         }
     }
 
-    void __load_recv_data() { interface.get_recv_data(rx_data_queue); }
+    void __load_recv_data()
+    {
+        interface.get_recv_data(rx_data_queue);
+    }
 
-    bool __rsp_process(uint32_t timeout_ms) {
+    bool __rsp_process(uint32_t timeout_ms)
+    {
         uint32_t start_tick = interface.get_system_1ms_ticks();
-        while (interface.get_system_1ms_ticks() - start_tick < timeout_ms) {
+        while (interface.get_system_1ms_ticks() - start_tick < timeout_ms)
+        {
             __load_recv_data();
-            while (rx_data_queue.empty() == false) {
+            while (rx_data_queue.empty() == false)
+            {
                 _data = rx_data_queue.front();
                 // elog_w(TAG, "recv data: %02x", _data);
                 rx_data_queue.pop();
 
-                if (recv_packet.flow_parse(_data)) {
+                if (recv_packet.flow_parse(_data))
+                {
                     //  Log.r(recv_packet.packet.data(),
                     //   recv_packet.packet.size());
-                    if (recv_packet.mt == MT_RSP) {
+                    if (recv_packet.mt == MT_RSP)
+                    {
                         // 接收到响应
                         return true;
-                    } else if (recv_packet.mt == MT_NTF) {
+                    }
+                    else if (recv_packet.mt == MT_NTF)
+                    {
                         // 接收到通知
                         __notify_process();
                     }
@@ -871,78 +939,91 @@ class CX310 {
         return false;
     }
 
-    void __listening_ntf() {
+    void __listening_ntf()
+    {
         __load_recv_data();
-        while (rx_data_queue.empty() == false) {
+        while (rx_data_queue.empty() == false)
+        {
             _data = rx_data_queue.front();
             rx_data_queue.pop();
-            if (recv_packet.flow_parse(_data)) {
-                if (recv_packet.mt == MT_NTF) {
+            if (recv_packet.flow_parse(_data))
+            {
+                if (recv_packet.mt == MT_NTF)
+                {
                     __notify_process();
-                } else {
+                }
+                else
+                {
                     elog_e(TAG, "unexpected rsp packet");
                 }
             }
         }
     }
 
-    void __notify_process() {
-        if (recv_packet.gid == GID0x00) {
-            switch (recv_packet.oid) {
-                case CORE_DEVICE_STATUS_NTF: {
-                    uint8_t sta = uci_ntf.parse_core_device_status_ntf(
-                        recv_packet.packet);
-                    if (sta == DEVICE_STATE_READY) {
-                        if (uwbs_sta == BOOT) {
-                            uwbs_sta = READY;
-                            elog_v(TAG, "UWBS move to active state");
-                        }
+    void __notify_process()
+    {
+        if (recv_packet.gid == GID0x00)
+        {
+            switch (recv_packet.oid)
+            {
+            case CORE_DEVICE_STATUS_NTF: {
+                uint8_t sta = uci_ntf.parse_core_device_status_ntf(recv_packet.packet);
+                if (sta == DEVICE_STATE_READY)
+                {
+                    if (uwbs_sta == BOOT)
+                    {
+                        uwbs_sta = READY;
+                        elog_v(TAG, "UWBS move to active state");
                     }
-                    break;
                 }
-                default: {
-                    elog_v(TAG, "undealed notify: gid=0x00, oid=0x%.2X",
-                           recv_packet.oid);
-                    break;
-                }
+                break;
+            }
+            default: {
+                elog_v(TAG, "undealed notify: gid=0x00, oid=0x%.2X", recv_packet.oid);
+                break;
+            }
             }
         }
-        if (recv_packet.gid == GID0x03) {
-            switch (recv_packet.oid) {
-                case CX_APP_DATA_TX_NTF: {
-                    if (uci_ntf.parse_cx_app_data_tx_ntf(recv_packet.packet) !=
-                        STATUS_OK) {
-                        elog_e(TAG, "parse data tx ntf fail");
-                    }
-                    break;
+        if (recv_packet.gid == GID0x03)
+        {
+            switch (recv_packet.oid)
+            {
+            case CX_APP_DATA_TX_NTF: {
+                if (uci_ntf.parse_cx_app_data_tx_ntf(recv_packet.packet) != STATUS_OK)
+                {
+                    elog_e(TAG, "parse data tx ntf fail");
                 }
-                case CX_APP_DATA_RX_NTF: {
-                    if (!uci_ntf.parse_cx_app_data_rx_ntf(recv_packet.packet)) {
-                        elog_e(TAG, "parse data rx ntf fail");
-                    }
+                break;
+            }
+            case CX_APP_DATA_RX_NTF: {
+                if (!uci_ntf.parse_cx_app_data_rx_ntf(recv_packet.packet))
+                {
+                    elog_e(TAG, "parse data rx ntf fail");
+                }
 
-                    if (recv_packet.packet.size() < 2) {
-                        elog_e(TAG, "rx payload size is too small");
-                        break;
-                    }
-                    for (auto it = recv_packet.packet.begin() + 2;
-                         it != recv_packet.packet.end(); it++) {
-                        transparent_data.push(*it);
-                    }
-                    // elog_v("UWB: data receive, size=%u",
-                    //               rx_payload.size() - 2);
+                if (recv_packet.packet.size() < 2)
+                {
+                    elog_e(TAG, "rx payload size is too small");
                     break;
                 }
-                default: {
-                    elog_v(TAG, "undealed notify: gid=0x03, oid=0x%.2X",
-                           recv_packet.oid);
-                    break;
+                for (auto it = recv_packet.packet.begin() + 2; it != recv_packet.packet.end(); it++)
+                {
+                    transparent_data.push(*it);
                 }
+                // elog_v("UWB: data receive, size=%u",
+                //               rx_payload.size() - 2);
+                break;
+            }
+            default: {
+                elog_v(TAG, "undealed notify: gid=0x03, oid=0x%.2X", recv_packet.oid);
+                break;
+            }
             }
         }
     }
 
-    void __init() {
+    void __init()
+    {
         uint32_t start_tick;
         uwbs_sta = BOOT;
         init_success = false;
@@ -970,16 +1051,20 @@ class CX310 {
 
         // 更新通知与状态机
         start_tick = interface.get_system_1ms_ticks();
-        while (uwbs_sta != READY) {    // 检查是否就绪
+        while (uwbs_sta != READY)
+        { // 检查是否就绪
             update();
-            if (interface.get_system_1ms_ticks() - start_tick > 1000) {
+            if (interface.get_system_1ms_ticks() - start_tick > 1000)
+            {
                 // 超时
                 elog_e(TAG, "init wait ready timeout");
                 break;
             }
         }
-        if (uwbs_sta == READY) {
-            if (reset(1000)) {
+        if (uwbs_sta == READY)
+        {
+            if (reset(1000))
+            {
                 init_success = true;
                 elog_v(TAG, "UWBS init success");
                 return;
@@ -991,34 +1076,45 @@ class CX310 {
         // __delay_ms(500);
         // reset(3000);
     }
-    bool __send_packet() {
-        if ((cmd_packer == nullptr) || (check_rsp == nullptr)) {
+    bool __send_packet()
+    {
+        if ((cmd_packer == nullptr) || (check_rsp == nullptr))
+        {
             return false;
         }
         bool send_flag = true;
         bool pack_all_payload = false;
         bool ret = false;
         uint8_t index = 0;
-        while (1) {
-            if (send_flag) {
+        while (1)
+        {
+            if (send_flag)
+            {
                 send_flag = false;
                 pack_all_payload = cmd_packer();
                 interface.send(uci_cmd.packet);
                 // Log.r(uci_cmd.packet.data(), uci_cmd.packet.size());
             }
-            if (__rsp_process(UWB_GENERAL_TIMEOUT_MS)) {
-                if (check_rsp(recv_packet)) {
+            if (__rsp_process(UWB_GENERAL_TIMEOUT_MS))
+            {
+                if (check_rsp(recv_packet))
+                {
                     send_flag = true;
-                    if (pack_all_payload) {
+                    if (pack_all_payload)
+                    {
                         ret = true;
                         break;
                     }
-                } else {
+                }
+                else
+                {
                     elog_e(TAG, "rsp check fail");
                     ret = false;
                     break;
                 }
-            } else {
+            }
+            else
+            {
                 ret = false;
                 break;
             }
