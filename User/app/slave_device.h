@@ -3,6 +3,7 @@
 #include <memory>
 
 #include "LockController.h"
+#include "MasterComm.h"
 #include "TaskCPP.h"
 #include "WhtsProtocol.h"
 #include "button.h"
@@ -57,7 +58,7 @@ class SlaveDevice
 
     static constexpr const char TAG[] = "SlaveDevice";
 
-    SlaveDevice(); // 修改构造函数，自动读取UID
+    SlaveDevice();
     ~SlaveDevice() = default;
 
     /**
@@ -76,7 +77,7 @@ class SlaveDevice
      * @param frame 要发送的数据帧
      * @return 是否发送成功
      */
-    static int send(const std::vector<uint8_t> &frame);
+    int send(const std::vector<uint8_t> &frame);
 
     /**
      * 发送待回复的响应消息（在时隙中发送以避免冲撞）
@@ -233,6 +234,8 @@ class SlaveDevice
         uint16_t adc_value{};
         float battery_voltage{};
     };
+
+    MasterComm m_masterComm;
 
     std::unique_ptr<DataCollectionTask> m_dataCollectionTask;
     std::unique_ptr<AnnounceTask> m_announceTask;

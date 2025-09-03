@@ -3,6 +3,7 @@
 
 #include <cstdio>
 
+#include "MasterComm.h"
 #include "adc.h"
 #include "cmsis_os2.h"
 #include "elog.h"
@@ -10,7 +11,6 @@
 #include "hptimer.hpp"
 #include "main.h"
 #include "master_slave_message_handlers.h"
-#include "uwb_task.h"
 
 using namespace WhtsProtocol;
 
@@ -36,7 +36,7 @@ SlaveDevice::SlaveDevice()
       m_hasPendingResetResponse(false),                                              // 初始无待回复的Reset消息
       m_pendingSlaveControlResponse(nullptr), // 初始化待回复的SlaveControl响应为空
       m_pendingResetResponse(nullptr),        // 初始化待回复的Reset响应为空
-      m_deviceStatus({})
+      m_deviceStatus({}), m_masterComm()
 {
 
     // Initialize continuity collector
@@ -471,7 +471,7 @@ bool SlaveDevice::AnnounceTask::sendAnnounceMessage() const
     bool success = true;
     for (auto &fragment : packedData)
     {
-        if (SlaveApp::SlaveDevice::send(fragment) != 0)
+        if (parent.send(fragment) != 0)
         {
             elog_e(TAG, "Failed to send announce message fragment");
             success = false;
@@ -624,7 +624,7 @@ void SlaveDevice::DataCollectionTask::sendDataToBackend() const
         bool success = true;
         for (size_t i = 0; i < packedData.size(); ++i)
         {
-            if (SlaveApp::SlaveDevice::send(packedData[i]) != 0)
+            if (parent.send(packedData[i]) != 0)
             {
                 elog_e(TAG, "Failed to send data fragment %d/%d to backend", i + 1, packedData.size());
                 success = false;
@@ -651,7 +651,7 @@ void SlaveDevice::DataCollectionTask::sendDataToBackend() const
 
 int SlaveDevice::send(const std::vector<uint8_t> &frame)
 {
-    return UwbSendData(frame.data(), frame.size(), 0);
+    return m_masterComm.SendData(frame.data(), frame.size(), 0);
 }
 
 // SlaveDataProcT 实现
@@ -666,7 +666,7 @@ void SlaveDevice::SlaveDataProcT::task()
     uwbRxMsg msg;
     for (;;)
     {
-        if (UwbReceiveData(&msg, 0) == 0)
+        if (parent.m_masterComm.ReceiveData(&msg, 0) == 0)
         {
             elog_v(TAG, "SlaveDataProcT recvData size: %d", msg.data_len);
             // copy msg.data to recvData

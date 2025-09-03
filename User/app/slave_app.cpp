@@ -1,9 +1,9 @@
+#include "MasterComm.h"
 #include "adc.h"
 #include "bootloader_flag.h"
 #include "cmsis_os2.h"
 #include "elog.h"
 #include "slave_device.h"
-#include "uwb_task.h"
 const char *TAG = "slave_app";
 
 using namespace SlaveApp;
@@ -24,8 +24,6 @@ extern "C" uint32_t SlaveDeviceGetSyncTimestampMs(void *device)
 
 extern "C" int main_app(void)
 {
-    UwbTaskInit();
-
     SlaveDevice slaveDevice;
 
     // Register SlaveDevice with easylogger for synchronized timestamps
