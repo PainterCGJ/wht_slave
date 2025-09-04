@@ -43,6 +43,37 @@ void MasterComm::UwbCommTask()
     osDelay(3);
     uwb.set_recv_mode();
 
+    // if DIP1 reset, set uwb channel to 6
+    // else if DIP2 reset, set uwb channel to 7
+    // else if DIP3 reset, set uwb channel to 8
+    // else if DIP4 reset, set uwb channel to 9
+    // else if DIP5 reset, set uwb channel to 10
+    // else set uwb channel to 5
+    if (HAL_GPIO_ReadPin(DIP1_GPIO_Port, DIP1_Pin) == GPIO_PIN_RESET)
+    {
+        uwb.set_channel(6);
+    }
+    else if (HAL_GPIO_ReadPin(DIP2_GPIO_Port, DIP2_Pin) == GPIO_PIN_RESET)
+    {
+        uwb.set_channel(7);
+    }
+    else if (HAL_GPIO_ReadPin(DIP3_GPIO_Port, DIP3_Pin) == GPIO_PIN_RESET)
+    {
+        uwb.set_channel(8);
+    }
+    else if (HAL_GPIO_ReadPin(DIP4_GPIO_Port, DIP4_Pin) == GPIO_PIN_RESET)
+    {
+        uwb.set_channel(9);
+    }
+    else if (HAL_GPIO_ReadPin(DIP5_GPIO_Port, DIP5_Pin) == GPIO_PIN_RESET)
+    {
+        uwb.set_channel(10);
+    }
+    else
+    {
+        uwb.set_channel(5);
+    }
+
     for (;;)
     {
         // 等待发送信号量，确保队列中有完整的数据
