@@ -18,6 +18,7 @@ enum class SlaveRunMode : uint8_t {
 struct SlaveConfig {
     uint32_t slaveId;       // 4字节从机ID
     uint8_t timeSlot;       // 分配的时隙
+    uint8_t reset;          // 复位标志：0-默认值，1-执行复位
     uint8_t testCount;      // 检测数量（导通/阻值/卡钉数量）
 };
 

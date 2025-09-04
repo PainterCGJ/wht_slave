@@ -52,6 +52,7 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
 
     // 4. 查找本从机的配置
     bool configFound = false;
+    bool resetRequested = false;
     for (const auto &config : syncMsg->slaveConfigs)
     {
         if (config.slaveId == device->m_deviceId)
@@ -60,9 +61,10 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
             device->currentConfig.testCount = config.testCount;
             device->m_isConfigured = true;
             configFound = true;
+            resetRequested = (config.reset == 1);
 
-            elog_v("SyncMessageHandler", "Found config for device 0x%08X - TimeSlot: %d, TestCount: %d",
-                   device->m_deviceId, config.timeSlot, config.testCount);
+            elog_v("SyncMessageHandler", "Found config for device 0x%08X - TimeSlot: %d, TestCount: %d, Reset: %d",
+                   device->m_deviceId, config.timeSlot, config.testCount, config.reset);
             break;
         }
     }
@@ -74,6 +76,25 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
         return nullptr;
     }
 
+    // 处理复位请求
+    if (resetRequested)
+    {
+        elog_v("SyncMessageHandler", "Reset requested for device 0x%08X", device->m_deviceId);
+
+        // 重置设备状态，但保留配置
+        device->resetDevice();
+
+        // 创建复位响应消息并排队等待发送
+        auto resetResponse = std::make_unique<Slave2Master::RstResponseMessage>();
+        resetResponse->status = 0; // 0：复位成功
+
+        // 存储待回复的响应并设置标志位
+        device->m_pendingResetResponse = std::move(resetResponse);
+        device->m_hasPendingResetResponse = true;
+
+        elog_v("SyncMessageHandler", "Reset completed, response queued for next active slot");
+    }
+
     // 5. 设置延迟启动时间
     device->m_scheduledStartTime = syncMsg->startTime;
     device->m_isScheduledToStart = true;
@@ -81,7 +102,6 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
     // 6. 配置采集器
     // totalCycles = sum of salve's testCount
     uint16_t totalCycles = 0;
-
     for (const auto &config : syncMsg->slaveConfigs)
     {
         totalCycles += config.testCount;
@@ -318,23 +338,23 @@ std::unique_ptr<Message> PingRequestHandler::ProcessMessage(const Message &messa
     return std::move(response);
 }
 
-// Reset Message Handler
+// DEPRECATED: Reset Message Handler
+// Reset功能现在已经集成到SyncMessage中，但为了兼容性仍然保留此处理器
 std::unique_ptr<Message> ResetMessageHandler::ProcessMessage(const Message &message, SlaveDevice *device)
 {
     const auto *rstMsg = dynamic_cast<const Master2Slave::RstMessage *>(&message);
     if (!rstMsg)
         return nullptr;
 
-    elog_v("ResetMessageHandler", "Processing reset message - Lock status: %d", static_cast<int>(rstMsg->lockStatus));
+    elog_v("ResetMessageHandler", "Processing deprecated reset message - Lock status: %d",
+           static_cast<int>(rstMsg->lockStatus));
 
     // 重置设备状态，但保留配置
     device->resetDevice();
 
-    // 创建响应消息但不立即发送，而是设置待回复标志位
+    // 创建简化的响应消息（新格式只包含status字段）
     auto response = std::make_unique<Slave2Master::RstResponseMessage>();
-    response->status = 0; // Success
-    response->lockStatus = rstMsg->lockStatus;
-    response->clipLed = rstMsg->clipLed;
+    response->status = 0; // 0：复位成功
 
     // 存储待回复的响应并设置标志位
     device->m_pendingResetResponse = std::move(response);

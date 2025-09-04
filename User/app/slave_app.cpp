@@ -36,7 +36,6 @@ extern "C" int main_app(void)
 
     for (;;)
     {
-        // HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
         osDelay(100);
     }
 }

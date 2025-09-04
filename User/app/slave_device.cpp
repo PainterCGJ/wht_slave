@@ -274,9 +274,6 @@ void SlaveDevice::OnSlotChanged(const SlotInfo &slotInfo)
 
         // 清空数据矩阵为下一次采集做准备
         m_continuityCollector->ClearData();
-
-        // 在单周期模式下，不立即停止采集状态，让SlotManager完成整个周期
-        // SlotManager会在完成单周期后自动停止，那时再更新状态
     }
 }
 

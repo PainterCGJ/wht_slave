@@ -81,9 +81,7 @@ class ClipConfigResponseMessage : public Message {
 
 class RstResponseMessage : public Message {
    public:
-    uint8_t status;
-    uint8_t lockStatus;
-    uint16_t clipLed;
+    uint8_t status;         // 0：复位成功，1：复位异常
 
     std::vector<uint8_t> serialize() const override;
     bool deserialize(const std::vector<uint8_t>& data) override;
