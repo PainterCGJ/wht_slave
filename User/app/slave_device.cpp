@@ -71,22 +71,10 @@ void SlaveDevice::InitializeMessageHandlers()
 {
     messageHandlers_[static_cast<uint8_t>(WhtsProtocol::Master2SlaveMessageId::SYNC_MSG)] =
         &SyncMessageHandler::GetInstance();
-    messageHandlers_[static_cast<uint8_t>(WhtsProtocol::Master2SlaveMessageId::SET_TIME_MSG)] =
-        &SetTimeMessageHandler::GetInstance();
-    messageHandlers_[static_cast<uint8_t>(WhtsProtocol::Master2SlaveMessageId::CONDUCTION_CFG_MSG)] =
-        &ConductionConfigHandler::GetInstance();
-    messageHandlers_[static_cast<uint8_t>(WhtsProtocol::Master2SlaveMessageId::RESISTANCE_CFG_MSG)] =
-        &ResistanceConfigHandler::GetInstance();
-    messageHandlers_[static_cast<uint8_t>(WhtsProtocol::Master2SlaveMessageId::CLIP_CFG_MSG)] =
-        &ClipConfigHandler::GetInstance();
     messageHandlers_[static_cast<uint8_t>(WhtsProtocol::Master2SlaveMessageId::PING_REQ_MSG)] =
         &PingRequestHandler::GetInstance();
-    messageHandlers_[static_cast<uint8_t>(WhtsProtocol::Master2SlaveMessageId::RST_MSG)] =
-        &ResetMessageHandler::GetInstance();
     messageHandlers_[static_cast<uint8_t>(WhtsProtocol::Master2SlaveMessageId::SHORT_ID_ASSIGN_MSG)] =
         &ShortIdAssignHandler::GetInstance();
-    messageHandlers_[static_cast<uint8_t>(WhtsProtocol::Master2SlaveMessageId::SLAVE_CONTROL_MSG)] =
-        &SlaveControlHandler::GetInstance();
 }
 
 std::unique_ptr<Message> SlaveDevice::processMaster2SlaveMessage(const Message &message)

@@ -165,43 +165,17 @@ std::unique_ptr<Message> ProtocolProcessor::createMessage(PacketId packetId,
             switch (static_cast<Master2SlaveMessageId>(messageId)) {
                 case Master2SlaveMessageId::SYNC_MSG:
                     return std::make_unique<Master2Slave::SyncMessage>();
-                case Master2SlaveMessageId::SET_TIME_MSG:
-                    return std::make_unique<Master2Slave::SetTimeMessage>();
-                case Master2SlaveMessageId::CONDUCTION_CFG_MSG:
-                    return std::make_unique<
-                        Master2Slave::ConductionConfigMessage>();
-                case Master2SlaveMessageId::RESISTANCE_CFG_MSG:
-                    return std::make_unique<
-                        Master2Slave::ResistanceConfigMessage>();
-                case Master2SlaveMessageId::CLIP_CFG_MSG:
-                    return std::make_unique<Master2Slave::ClipConfigMessage>();
-                // Note: READ_COND_DATA_MSG, READ_RES_DATA_MSG, READ_CLIP_DATA_MSG
-                // have been deprecated in favor of push-based data collection
-                case Master2SlaveMessageId::RST_MSG:
-                    return std::make_unique<Master2Slave::RstMessage>();
                 case Master2SlaveMessageId::PING_REQ_MSG:
                     return std::make_unique<Master2Slave::PingReqMessage>();
                 case Master2SlaveMessageId::SHORT_ID_ASSIGN_MSG:
                     return std::make_unique<
                         Master2Slave::ShortIdAssignMessage>();
-                case Master2SlaveMessageId::SLAVE_CONTROL_MSG:
-                    return std::make_unique<Master2Slave::SlaveControlMessage>();
             }
             break;
 
         case PacketId::SLAVE_TO_MASTER:
             switch (static_cast<Slave2MasterMessageId>(messageId)) {
-                case Slave2MasterMessageId::SET_TIME_RSP_MSG:
-                    return std::make_unique<Slave2Master::SetTimeResponseMessage>();
-                case Slave2MasterMessageId::CONDUCTION_CFG_RSP_MSG:
-                    return std::make_unique<
-                        Slave2Master::ConductionConfigResponseMessage>();
-                case Slave2MasterMessageId::RESISTANCE_CFG_RSP_MSG:
-                    return std::make_unique<
-                        Slave2Master::ResistanceConfigResponseMessage>();
-                case Slave2MasterMessageId::CLIP_CFG_RSP_MSG:
-                    return std::make_unique<
-                        Slave2Master::ClipConfigResponseMessage>();
+
                 case Slave2MasterMessageId::RST_RSP_MSG:
                     return std::make_unique<Slave2Master::RstResponseMessage>();
                 case Slave2MasterMessageId::PING_RSP_MSG:
@@ -211,9 +185,6 @@ std::unique_ptr<Message> ProtocolProcessor::createMessage(PacketId packetId,
                 case Slave2MasterMessageId::SHORT_ID_CONFIRM_MSG:
                     return std::make_unique<
                         Slave2Master::ShortIdConfirmMessage>();
-                case Slave2MasterMessageId::SLAVE_CONTROL_RSP_MSG:
-                    return std::make_unique<
-                        Slave2Master::SlaveControlResponseMessage>();
             }
             break;
 

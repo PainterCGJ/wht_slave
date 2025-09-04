@@ -22,27 +22,12 @@ enum class PacketId : uint8_t {
 // Master2Slave Message ID 枚举
 enum class Master2SlaveMessageId : uint8_t {
     SYNC_MSG = 0x00,
-    SET_TIME_MSG = 0x01,
-    SLAVE_CONTROL_MSG = 0x02,
-    CONDUCTION_CFG_MSG = 0x10,
-    RESISTANCE_CFG_MSG = 0x11,
-    CLIP_CFG_MSG = 0x12,
-    // READ_COND_DATA_MSG = 0x20,    // Deprecated: Use push-based data
-    // collection READ_RES_DATA_MSG = 0x21,     // Deprecated: Use push-based
-    // data collection READ_CLIP_DATA_MSG = 0x22,    // Deprecated: Use
-    // push-based data collection
-    RST_MSG = 0x30,
     PING_REQ_MSG = 0x40,
     SHORT_ID_ASSIGN_MSG = 0x50,
 };
 
 // Slave2Master Message ID 枚举
 enum class Slave2MasterMessageId : uint8_t {
-    SET_TIME_RSP_MSG = 0x01,
-    SLAVE_CONTROL_RSP_MSG = 0x02,
-    CONDUCTION_CFG_RSP_MSG = 0x10,
-    RESISTANCE_CFG_RSP_MSG = 0x11,
-    CLIP_CFG_RSP_MSG = 0x22,
     RST_RSP_MSG = 0x30,
     PING_RSP_MSG = 0x41,
     ANNOUNCE_MSG = 0x50,

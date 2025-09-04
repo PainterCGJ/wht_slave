@@ -2,7 +2,8 @@
 
 #include <memory>
 
-#include "WhtsProtocol.h"
+#include "../../protocol/messages/Master2Slave.h"
+#include "../../protocol/messages/Slave2Master.h"
 
 using namespace WhtsProtocol;
 
@@ -37,74 +38,6 @@ class SyncMessageHandler final : public IMaster2SlaveMessageHandler
     SyncMessageHandler() = default;
 };
 
-// SetTime Message Handler
-class SetTimeMessageHandler final : public IMaster2SlaveMessageHandler
-{
-  public:
-    static SetTimeMessageHandler &GetInstance()
-    {
-        static SetTimeMessageHandler instance;
-        return instance;
-    }
-    std::unique_ptr<Message> ProcessMessage(const Message &message, SlaveDevice *device) override;
-    SetTimeMessageHandler(const SetTimeMessageHandler &) = delete;
-    SetTimeMessageHandler &operator=(const SetTimeMessageHandler &) = delete;
-
-  private:
-    SetTimeMessageHandler() = default;
-};
-
-// Conduction Config Message Handler
-class ConductionConfigHandler final : public IMaster2SlaveMessageHandler
-{
-  public:
-    static ConductionConfigHandler &GetInstance()
-    {
-        static ConductionConfigHandler instance;
-        return instance;
-    }
-    std::unique_ptr<Message> ProcessMessage(const Message &message, SlaveDevice *device) override;
-    ConductionConfigHandler(const ConductionConfigHandler &) = delete;
-    ConductionConfigHandler &operator=(const ConductionConfigHandler &) = delete;
-
-  private:
-    ConductionConfigHandler() = default;
-};
-
-// Resistance Config Message Handler
-class ResistanceConfigHandler final : public IMaster2SlaveMessageHandler
-{
-  public:
-    static ResistanceConfigHandler &GetInstance()
-    {
-        static ResistanceConfigHandler instance;
-        return instance;
-    }
-    std::unique_ptr<Message> ProcessMessage(const Message &message, SlaveDevice *device) override;
-    ResistanceConfigHandler(const ResistanceConfigHandler &) = delete;
-    ResistanceConfigHandler &operator=(const ResistanceConfigHandler &) = delete;
-
-  private:
-    ResistanceConfigHandler() = default;
-};
-
-// Clip Config Message Handler
-class ClipConfigHandler final : public IMaster2SlaveMessageHandler
-{
-  public:
-    static ClipConfigHandler &GetInstance()
-    {
-        static ClipConfigHandler instance;
-        return instance;
-    }
-    std::unique_ptr<Message> ProcessMessage(const Message &message, SlaveDevice *device) override;
-    ClipConfigHandler(const ClipConfigHandler &) = delete;
-    ClipConfigHandler &operator=(const ClipConfigHandler &) = delete;
-
-  private:
-    ClipConfigHandler() = default;
-};
-
 // Ping Request Message Handler
 class PingRequestHandler final : public IMaster2SlaveMessageHandler
 {
@@ -120,23 +53,6 @@ class PingRequestHandler final : public IMaster2SlaveMessageHandler
 
   private:
     PingRequestHandler() = default;
-};
-
-// Reset Message Handler
-class ResetMessageHandler final : public IMaster2SlaveMessageHandler
-{
-  public:
-    static ResetMessageHandler &GetInstance()
-    {
-        static ResetMessageHandler instance;
-        return instance;
-    }
-    std::unique_ptr<Message> ProcessMessage(const Message &message, SlaveDevice *device) override;
-    ResetMessageHandler(const ResetMessageHandler &) = delete;
-    ResetMessageHandler &operator=(const ResetMessageHandler &) = delete;
-
-  private:
-    ResetMessageHandler() = default;
 };
 
 // Short ID Assignment Message Handler
@@ -157,20 +73,5 @@ class ShortIdAssignHandler final : public IMaster2SlaveMessageHandler
 };
 
 // Secondary Control Message Handler
-class SlaveControlHandler final : public IMaster2SlaveMessageHandler
-{
-  public:
-    static SlaveControlHandler &GetInstance()
-    {
-        static SlaveControlHandler instance;
-        return instance;
-    }
-    std::unique_ptr<Message> ProcessMessage(const Message &message, SlaveDevice *device) override;
-    SlaveControlHandler(const SlaveControlHandler &) = delete;
-    SlaveControlHandler &operator=(const SlaveControlHandler &) = delete;
-
-  private:
-    SlaveControlHandler() = default;
-};
 
 } // namespace SlaveApp
