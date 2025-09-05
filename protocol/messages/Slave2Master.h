@@ -67,6 +67,18 @@ class ShortIdConfirmMessage : public Message {
     }
 };
 
+class HeartbeatMessage : public Message {
+   public:
+    uint8_t reserve;  // 保留字段
+
+    std::vector<uint8_t> serialize() const override;
+    bool deserialize(const std::vector<uint8_t>& data) override;
+    uint8_t getMessageId() const override {
+        return static_cast<uint8_t>(Slave2MasterMessageId::HEARTBEAT_MSG);
+    }
+    const char* getMessageTypeName() const override { return "Heartbeat"; }
+};
+
 
 }    // namespace Slave2Master
 }    // namespace WhtsProtocol

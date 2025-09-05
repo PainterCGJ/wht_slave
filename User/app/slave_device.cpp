@@ -28,6 +28,9 @@ SlaveDevice::SlaveDevice()
       m_isJoined(false),                                                             // 初始未入网
       m_isConfigured(false), m_deviceState(SlaveDeviceState::IDLE), m_timeOffset(0), // 初始时间偏移量为0
       m_isCollecting(false),                                                         // 初始未在采集
+      m_lastSyncMessageTime(0),                                                      // 初始化上次sync消息时间
+      m_lastHeartbeatTime(0),                                                        // 初始化上次心跳时间
+      m_inTdmaMode(false),                                                           // 初始不在TDMA模式
       m_scheduledStartTime(0),                                                       // 初始计划启动时间为0
       m_isScheduledToStart(false),                                                   // 初始未计划启动
       m_hasDataToSend(false),                                                        // 初始无数据待发送
@@ -211,6 +214,40 @@ void SlaveDevice::sendPendingResponses()
     }
 }
 
+void SlaveDevice::sendHeartbeat()
+{
+    elog_v(TAG, "Sending heartbeat message");
+
+    // 创建心跳消息
+    auto heartbeatMsg = std::make_unique<WhtsProtocol::Slave2Master::HeartbeatMessage>();
+    heartbeatMsg->reserve = 0; // 保留字段设为0
+
+    // 打包消息
+    std::vector<std::vector<uint8_t>> messageData = m_processor.packSlave2MasterMessage(m_deviceId, *heartbeatMsg);
+
+    // 发送所有片段
+    bool success = true;
+    for (auto &fragment : messageData)
+    {
+        if (send(fragment) != 0)
+        {
+            elog_e(TAG, "Failed to send heartbeat fragment");
+            success = false;
+            break;
+        }
+    }
+
+    if (success)
+    {
+        elog_v(TAG, "Heartbeat sent successfully");
+        m_lastHeartbeatTime = HptimerGetUs();
+    }
+    else
+    {
+        elog_e(TAG, "Failed to send heartbeat");
+    }
+}
+
 void SlaveDevice::OnSlotChanged(const SlotInfo &slotInfo)
 {
     // 如果有待回复的响应，即使不在采集状态也要处理
@@ -236,6 +273,12 @@ void SlaveDevice::OnSlotChanged(const SlotInfo &slotInfo)
 
         // 优先发送待回复的响应消息（避免与数据传输冲撞）
         sendPendingResponses();
+
+        // 在TDMA模式下发送心跳包（当前在第一个激活时隙）
+        if (m_inTdmaMode)
+        {
+            sendHeartbeat();
+        }
 
         // 发送数据到后端（每个周期都发送当前采集的数据）
         if (m_dataCollectionTask)
@@ -514,6 +557,24 @@ void SlaveDevice::DataCollectionTask::task()
             wasSlotManagerRunning = isCurrentlyRunning;
 
             parent.m_slotManager->Process();
+        }
+
+        // 检查sync消息超时和心跳逻辑
+        uint64_t currentTime = HptimerGetUs();
+
+        // 检查是否超过30秒没收到sync消息（退出TDMA模式）
+        if (parent.m_inTdmaMode && (currentTime - parent.m_lastSyncMessageTime) > parent.SYNC_TIMEOUT_US)
+        {
+            elog_v(TAG, "Sync message timeout, exiting TDMA mode");
+            parent.m_inTdmaMode = false;
+            parent.m_lastHeartbeatTime = currentTime; // 重置心跳计时
+        }
+
+        // 在非TDMA模式下，每10秒发送一次心跳
+        if (!parent.m_inTdmaMode && (currentTime - parent.m_lastHeartbeatTime) > parent.HEARTBEAT_INTERVAL_US)
+        {
+            elog_v(TAG, "Sending periodic heartbeat outside TDMA mode");
+            parent.sendHeartbeat();
         }
 
         // 减少轮询间隔以提高时隙切换精度

@@ -32,6 +32,7 @@ enum class Slave2MasterMessageId : uint8_t {
     PING_RSP_MSG = 0x41,
     ANNOUNCE_MSG = 0x50,
     SHORT_ID_CONFIRM_MSG = 0x51,
+    HEARTBEAT_MSG = 0x52,
 };
 
 // Backend2Master Message ID 枚举

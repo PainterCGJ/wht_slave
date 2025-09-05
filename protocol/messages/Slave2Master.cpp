@@ -74,6 +74,17 @@ bool ShortIdConfirmMessage::deserialize(const std::vector<uint8_t> &data) {
     return true;
 }
 
+// HeartbeatMessage 实现
+std::vector<uint8_t> HeartbeatMessage::serialize() const {
+    return {reserve};
+}
+
+bool HeartbeatMessage::deserialize(const std::vector<uint8_t> &data) {
+    if (data.size() < 1) return false;
+    reserve = data[0];
+    return true;
+}
+
 
 }    // namespace Slave2Master
 }    // namespace WhtsProtocol

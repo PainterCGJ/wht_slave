@@ -26,6 +26,10 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
     int64_t timeOffset = static_cast<int64_t>(syncMsg->currentTime) - static_cast<int64_t>(localTimestamp);
     device->m_timeOffset = timeOffset;
 
+    // 更新sync消息接收时间，进入TDMA模式
+    device->m_lastSyncMessageTime = localTimestamp;
+    device->m_inTdmaMode = true;
+
     elog_v("SyncMessageHandler", "Time sync - Local: %lu us, Master: %lu us, Offset: %ld us",
            static_cast<unsigned long>(localTimestamp), static_cast<unsigned long>(syncMsg->currentTime),
            static_cast<long>(timeOffset));

@@ -55,6 +55,13 @@ class SlaveDevice
     int64_t m_timeOffset; // 与主机时间的偏移量(us)
     bool m_isCollecting;  // 是否正在采集数据
 
+    // 心跳相关
+    uint64_t m_lastSyncMessageTime;                                // 上次收到sync消息的时间戳(us)
+    uint64_t m_lastHeartbeatTime;                                  // 上次发送心跳的时间戳(us)
+    bool m_inTdmaMode;                                             // 是否在TDMA管理模式下
+    static constexpr uint64_t SYNC_TIMEOUT_US = 30000000ULL;       // 30秒超时(us)
+    static constexpr uint64_t HEARTBEAT_INTERVAL_US = 10000000ULL; // 10秒心跳间隔(us)
+
     // 延迟启动相关
     uint64_t m_scheduledStartTime; // 计划启动时间戳(us)
     bool m_isScheduledToStart;     // 是否已计划启动
@@ -105,6 +112,11 @@ class SlaveDevice
      * 发送待回复的响应消息（在时隙中发送以避免冲撞）
      */
     void sendPendingResponses();
+
+    /**
+     * 发送心跳消息
+     */
+    void sendHeartbeat();
 
     /**
      * 处理Master2Slave消息

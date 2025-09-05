@@ -185,6 +185,8 @@ std::unique_ptr<Message> ProtocolProcessor::createMessage(PacketId packetId,
                 case Slave2MasterMessageId::SHORT_ID_CONFIRM_MSG:
                     return std::make_unique<
                         Slave2Master::ShortIdConfirmMessage>();
+                case Slave2MasterMessageId::HEARTBEAT_MSG:
+                    return std::make_unique<Slave2Master::HeartbeatMessage>();
             }
             break;
 
