@@ -484,6 +484,9 @@ void SlaveDevice::processFrame(const Frame &frame)
 
 void SlaveDevice::run() const
 {
+    // elog i device id
+    elog_i(TAG, "Device ID: 0x%08X", m_deviceId);
+
     if (m_dataCollectionTask)
     {
         m_dataCollectionTask->give();

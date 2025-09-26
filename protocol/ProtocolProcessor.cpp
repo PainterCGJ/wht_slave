@@ -510,11 +510,6 @@ void ProtocolProcessor::processReceivedData(const std::vector<uint8_t> &data) {
     elog_v("ProtocolProcessor", "Current receive buffer size: %d bytes",
            receiveBuffer_.size());
 
-    // Try to extract complete frames from buffer
-    bool framesExtracted = extractCompleteFrames();
-    elog_v("ProtocolProcessor", "Frame extraction result: %s",
-           framesExtracted ? "frames found" : "no frames found");
-
     // Clean up expired fragments
     cleanupExpiredFragments();
 }

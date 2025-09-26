@@ -151,6 +151,7 @@ typedef struct {
 /* SN storage structure in Flash */
 typedef struct {
     uint32_t magic;         // 魔数验证
+    uint32_t batch_id;      // 批次ID
     uint8_t sn_length;      // SN长度
     uint8_t sn_data[SN_MAX_LENGTH];  // SN数据
     uint8_t reserved[3];    // 保留字节，用于32位对齐
@@ -199,8 +200,8 @@ GPIO_TypeDef* factory_test_get_gpio_port(uint8_t port_id);
 uint16_t factory_test_convert_pin_mask(uint16_t mask);
 
 /* SN management functions */
-device_status_t factory_test_write_sn(const uint8_t* sn_data, uint8_t sn_length);
-device_status_t factory_test_read_sn(uint8_t* sn_data, uint8_t* sn_length);
+device_status_t factory_test_write_sn(const uint8_t* sn_data, uint8_t sn_length, uint32_t batch_id);
+device_status_t factory_test_read_sn(uint8_t* sn_data, uint8_t* sn_length, uint32_t* batch_id);
 
 /* Additional test functions */
 device_status_t factory_test_uart_loopback(void);

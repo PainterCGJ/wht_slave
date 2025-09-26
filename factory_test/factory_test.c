@@ -825,19 +825,26 @@ void factory_test_handle_additional_test(const factory_test_frame_t* frame) {
         case TEST_SUB_WRITE_SN: {
             // Sub-ID 0x02: Write SN code
             if (frame->payload_len <
-                3) {    // Sub-ID(1) + SN_length(1) + SN_data(>=1)
+                7) {    // Sub-ID(1) + batch_id(4) + SN_length(1) + SN_data(>=1)
                 status = DEVICE_ERR_EXECUTION;
                 uint8_t response_payload[2] = {sub_id, status};
                 factory_test_create_response_frame(
                     &response, MSG_ID_ADDITIONAL_TEST, response_payload, 2);
             } else {
-                uint8_t sn_length = frame->payload[1];
-                const uint8_t* sn_data = &frame->payload[2];
-
-                if (frame->payload_len != (2 + sn_length)) {
+                // 提取batch_id (Little Endian) - 紧跟在sub_id后面
+                uint32_t batch_id = frame->payload[1] |
+                                   (frame->payload[2] << 8) |
+                                   (frame->payload[3] << 16) |
+                                   (frame->payload[4] << 24);
+                
+                uint8_t sn_length = frame->payload[5];
+                const uint8_t* sn_data = &frame->payload[6];
+                
+                // 检查payload长度是否正确：Sub-ID(1) + batch_id(4) + SN_length(1) + SN_data(N)
+                if (frame->payload_len != (6 + sn_length)) {
                     status = DEVICE_ERR_EXECUTION;
                 } else {
-                    status = factory_test_write_sn(sn_data, sn_length);
+                    status = factory_test_write_sn(sn_data, sn_length, batch_id);
                 }
 
                 uint8_t response_payload[2] = {sub_id, status};
@@ -871,18 +878,24 @@ void factory_test_handle_additional_test(const factory_test_frame_t* frame) {
             // Sub-ID 0x04: Read SN code
             uint8_t sn_data[SN_MAX_LENGTH];
             uint8_t sn_length = 0;
-            status = factory_test_read_sn(sn_data, &sn_length);
+            uint32_t batch_id = 0;
+            status = factory_test_read_sn(sn_data, &sn_length, &batch_id);
 
             if (status == DEVICE_OK) {
-                // Response: Sub-ID(1) + Status(1) + SN_length(1) + SN_data(N)
-                uint8_t response_payload[3 + SN_MAX_LENGTH];
+                // Response: Sub-ID(1) + Status(1) + batch_id(4) + SN_length(1) + SN_data(N)
+                uint8_t response_payload[7 + SN_MAX_LENGTH];
                 response_payload[0] = sub_id;
                 response_payload[1] = status;
-                response_payload[2] = sn_length;
-                memcpy(&response_payload[3], sn_data, sn_length);
+                // 添加batch_id (Little Endian) - 紧跟在status后面
+                response_payload[2] = batch_id & 0xFF;
+                response_payload[3] = (batch_id >> 8) & 0xFF;
+                response_payload[4] = (batch_id >> 16) & 0xFF;
+                response_payload[5] = (batch_id >> 24) & 0xFF;
+                response_payload[6] = sn_length;
+                memcpy(&response_payload[7], sn_data, sn_length);
                 factory_test_create_response_frame(
                     &response, MSG_ID_ADDITIONAL_TEST, response_payload,
-                    3 + sn_length);
+                    7 + sn_length);
             } else {
                 uint8_t response_payload[2] = {sub_id, status};
                 factory_test_create_response_frame(
@@ -1633,10 +1646,11 @@ static const sn_storage_t* get_sn_storage_ptr(void) {
  * @brief  Write SN code to Flash
  * @param  sn_data: Pointer to SN data
  * @param  sn_length: Length of SN data
+ * @param  batch_id: Batch ID
  * @retval Device status
  */
 device_status_t factory_test_write_sn(const uint8_t* sn_data,
-                                      uint8_t sn_length) {
+                                      uint8_t sn_length, uint32_t batch_id) {
     if (sn_data == NULL || sn_length == 0 || sn_length > SN_MAX_LENGTH) {
         return DEVICE_ERR_EXECUTION;
     }
@@ -1645,6 +1659,7 @@ device_status_t factory_test_write_sn(const uint8_t* sn_data,
 
     // 准备SN存储结构
     sn_storage.magic = SN_MAGIC_NUMBER;
+    sn_storage.batch_id = batch_id;
     sn_storage.sn_length = sn_length;
     memcpy(sn_storage.sn_data, sn_data, sn_length);
 
@@ -1663,13 +1678,14 @@ device_status_t factory_test_write_sn(const uint8_t* sn_data,
     // 验证写入结果
     const sn_storage_t* stored_sn = get_sn_storage_ptr();
     if (stored_sn->magic != SN_MAGIC_NUMBER ||
+        stored_sn->batch_id != batch_id ||
         stored_sn->sn_length != sn_length ||
         memcmp(stored_sn->sn_data, sn_data, sn_length) != 0) {
         elog_e(TAG, "SN data verification failed");
         return DEVICE_ERR_EXECUTION;
     }
 
-    elog_i(TAG, "SN written successfully, length=%d", sn_length);
+    elog_i(TAG, "SN written successfully, length=%d, batch_id=0x%08X", sn_length, batch_id);
     return DEVICE_OK;
 }
 
@@ -1677,10 +1693,11 @@ device_status_t factory_test_write_sn(const uint8_t* sn_data,
  * @brief  Read SN code from Flash
  * @param  sn_data: Buffer to store SN data
  * @param  sn_length: Pointer to store SN length
+ * @param  batch_id: Pointer to store batch ID
  * @retval Device status
  */
-device_status_t factory_test_read_sn(uint8_t* sn_data, uint8_t* sn_length) {
-    if (sn_data == NULL || sn_length == NULL) {
+device_status_t factory_test_read_sn(uint8_t* sn_data, uint8_t* sn_length, uint32_t* batch_id) {
+    if (sn_data == NULL || sn_length == NULL || batch_id == NULL) {
         return DEVICE_ERR_EXECUTION;
     }
 
@@ -1690,6 +1707,7 @@ device_status_t factory_test_read_sn(uint8_t* sn_data, uint8_t* sn_length) {
     if (stored_sn->magic != SN_MAGIC_NUMBER) {
         elog_w(TAG, "SN magic number not found, SN not programmed");
         *sn_length = 0;
+        *batch_id = 0;
         return DEVICE_ERR_EXECUTION;
     }
 
@@ -1697,14 +1715,16 @@ device_status_t factory_test_read_sn(uint8_t* sn_data, uint8_t* sn_length) {
     if (stored_sn->sn_length == 0 || stored_sn->sn_length > SN_MAX_LENGTH) {
         elog_w(TAG, "Invalid SN length: %d", stored_sn->sn_length);
         *sn_length = 0;
+        *batch_id = 0;
         return DEVICE_ERR_EXECUTION;
     }
 
-    // 复制SN数据
+    // 复制SN数据和batch_id
     *sn_length = stored_sn->sn_length;
+    *batch_id = stored_sn->batch_id;
     memcpy(sn_data, stored_sn->sn_data, stored_sn->sn_length);
 
-    elog_d(TAG, "SN read successfully, length=%d", *sn_length);
+    elog_d(TAG, "SN read successfully, length=%d, batch_id=0x%08X", *sn_length, *batch_id);
     return DEVICE_OK;
 }
 

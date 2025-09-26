@@ -204,7 +204,7 @@ examples = {
         "source": 0x01,
         "target": 0x02,
         "msg_id": 0x20,
-        "payload": "02 0A 11 22 33 44 55 66 77 88 99 00",  # 无payload
+        "payload": "02 11 22 33 44 0A 11 22 33 44 55 66 77 88 99 00",  # 无payload
         "expect": "",
     },
     "读ID": {
