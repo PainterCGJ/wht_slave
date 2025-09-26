@@ -509,6 +509,8 @@ void ProtocolProcessor::processReceivedData(const std::vector<uint8_t> &data) {
     receiveBuffer_.insert(receiveBuffer_.end(), data.begin(), data.end());
     elog_v("ProtocolProcessor", "Current receive buffer size: %d bytes",
            receiveBuffer_.size());
+           
+    extractCompleteFrames();
 
     // Clean up expired fragments
     cleanupExpiredFragments();
