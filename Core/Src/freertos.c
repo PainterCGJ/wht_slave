@@ -200,5 +200,12 @@ int __io_putchar(int ch) {
     return ch;
 }
 
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
+{
+    // 栈溢出时会调用此函数
+    elog_e("FreeRTOS", "Stack overflow in task: %s", pcTaskName);
+    for(;;); // 停止系统以便调试
+}
+
 /* USER CODE END Application */
 
