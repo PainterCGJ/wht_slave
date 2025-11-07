@@ -37,7 +37,7 @@ static uint8_t uart_cmd_index = 0;
 osThreadId_t uartCmdTaskHandle;
 const osThreadAttr_t uartCmdTask_attributes = {
     .name = "uartCmdTask",
-    .stack_size = 256 * 4,
+    .stack_size = 1024 * 2,
     .priority = (osPriority_t)osPriorityBelowNormal,
 };
 
