@@ -95,10 +95,8 @@ void MasterComm::UwbCommTask()
         if (uwb->get_recv_data(buffer))
         {
             rxMsg->dataLen = buffer.size();
-            for (int i = 0; i < rxMsg->dataLen; i++)
-            {
-                rxMsg->data[i] = buffer[i];
-            }
+            // change to memcpy
+            memcpy(rxMsg->data, buffer.data(), rxMsg->dataLen);
             rxMsg->timestamp = osKernelGetTickCount();
             rxMsg->statusReg = 0;
             osMessageQueuePut(uwbRxQueue, rxMsg.get(), 0, 0);

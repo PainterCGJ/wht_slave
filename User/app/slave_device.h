@@ -214,7 +214,7 @@ class SlaveDevice
         static constexpr uint32_t PROCESS_INTERVAL_MS = 10; // 采集处理间隔
     };
 
-    class SlaveDataProcT final : public TaskClassS<2048>
+    class SlaveDataProcT final : public TaskClassS<8 * 1024>
     {
       public:
         explicit SlaveDataProcT(SlaveDevice &parent);
