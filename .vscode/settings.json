@@ -18,4 +18,8 @@
         "spi.h": "c",
         "cmsis_os.h": "c"
     },
+    "gitlens.ai.model": "deepseek:deepseek-chat",
+    "gitlens.ai.openai.url": "https://api.deepseek.com/v1",
+    "gitlens.ai.generateCommitMessage.customInstructions": "Now, please generate a commit message following the [[Conventional Commits](https://www.conventionalcommits.org/)](https://www.conventionalcommits.org/) specification.  The format is:  ```  <type>(<scope>): <Brief Description in Chinese>  ```  * `type`: must be one of `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, or `revert`  * `scope`: a single English word representing the affected module (e.g., `eth`, `gpio`, `log`)  * `<Brief Description>`: a one-line summary of the change in Chinese, under 50 characters ---"
+
 }

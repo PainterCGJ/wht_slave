@@ -95,23 +95,53 @@ include(${PROJECT_SOURCE_DIR}/cmake/flash_by_install.cmake)
 include(${PROJECT_SOURCE_DIR}/cmake/create_bin.cmake)
 
 # 获取 Git 标签作为版本号
+# 首先尝试获取本地标签，如果失败则静默处理
 execute_process(
   COMMAND git describe --tags --abbrev=0
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   OUTPUT_VARIABLE GIT_TAG
-  OUTPUT_STRIP_TRAILING_WHITESPACE)
+  ERROR_QUIET
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  RESULT_VARIABLE GIT_TAG_RESULT)
+
+# 如果本地没有标签，尝试从远程获取标签（适用于 fork 后的仓库）
+if(GIT_TAG_RESULT OR NOT GIT_TAG)
+  message(STATUS "No local tags found, attempting to fetch tags from remote...")
+  execute_process(
+    COMMAND git fetch --tags --quiet
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    ERROR_QUIET
+    RESULT_VARIABLE FETCH_RESULT)
+  
+  # 获取标签后再次尝试
+  if(NOT FETCH_RESULT)
+    execute_process(
+      COMMAND git describe --tags --abbrev=0
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      OUTPUT_VARIABLE GIT_TAG
+      ERROR_QUIET
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      RESULT_VARIABLE GIT_TAG_RESULT)
+  endif()
+endif()
 
 # 提取 MAJOR, MINOR, PATCH
-string(REGEX MATCH "([0-9]+)\\.([0-9]+)\\.([0-9]+)" VERSION_MATCH ${GIT_TAG})
+# string(REGEX MATCH) 需要为每个捕获组提供输出变量
+if(GIT_TAG)
+  string(REGEX MATCH "([0-9]+)\\.([0-9]+)\\.([0-9]+)" 
+                     VERSION_MATCH 
+                     PROJECT_VERSION_MAJOR 
+                     PROJECT_VERSION_MINOR 
+                     PROJECT_VERSION_PATCH 
+                     ${GIT_TAG})
+endif()
+
 if(VERSION_MATCH)
-  string(REGEX REPLACE "([0-9]+)\\.([0-9]+)\\.([0-9]+)" "\\1"
-                       PROJECT_VERSION_MAJOR ${VERSION_MATCH})
-  string(REGEX REPLACE "([0-9]+)\\.([0-9]+)\\.([0-9]+)" "\\2"
-                       PROJECT_VERSION_MINOR ${VERSION_MATCH})
-  string(REGEX REPLACE "([0-9]+)\\.([0-9]+)\\.([0-9]+)" "\\3"
-                       PROJECT_VERSION_PATCH ${VERSION_MATCH})
+  # 变量已经通过捕获组直接设置，无需再次替换
+  message(STATUS "Version from git tag: ${GIT_TAG} -> ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
 else()
-  message(WARNING "Invalid git tag: ${GIT_TAG}, using default version 0.0.0")
+  message(WARNING "Cannot extract version from git tag: '${GIT_TAG}', using default version 0.0.0")
+  message(WARNING "Hint: Run 'git fetch --tags' to fetch tags from remote repository")
   set(PROJECT_VERSION_MAJOR 0)
   set(PROJECT_VERSION_MINOR 0)
   set(PROJECT_VERSION_PATCH 0)

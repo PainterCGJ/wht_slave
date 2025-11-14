@@ -23,22 +23,22 @@ namespace SlaveApp
 {
 
 SlaveDevice::SlaveDevice()
-    : m_deviceId(DeviceUID::get()),                                                  // 自动读取设备UID
-      m_shortId(0),                                                                  // 初始短ID为0，表示未分配
-      m_isJoined(false),                                                             // 初始未入网
+    : m_deviceId(DeviceUID::get()), // 自动读取设备UID
+      m_shortId(0),                 // 初始短ID为0，表示未分配
+      m_isJoined(false),            // 初始未入网
       m_isConfigured(false), m_deviceState(SlaveDeviceState::IDLE), m_timeOffset(0), // 初始时间偏移量为0
       m_isCollecting(false),                                                         // 初始未在采集
       m_lastSyncMessageTime(0),                                                      // 初始化上次sync消息时间
-      m_lastHeartbeatTime(HptimerGetUs()),                                           // 初始化上次心跳时间为当前时间
-      m_inTdmaMode(false),                                                           // 初始不在TDMA模式
-      m_scheduledStartTime(0),                                                       // 初始计划启动时间为0
-      m_isScheduledToStart(false),                                                   // 初始未计划启动
-      m_hasDataToSend(false),                                                        // 初始无数据待发送
-      m_isFirstCollection(true),                                                     // 初始为第一次采集
-      m_hasPendingSlaveControlResponse(false),                                       // 初始无待回复的SlaveControl消息
-      m_hasPendingResetResponse(false),                                              // 初始无待回复的Reset消息
-      m_pendingSlaveControlResponse(nullptr), // 初始化待回复的SlaveControl响应为空
-      m_pendingResetResponse(nullptr),        // 初始化待回复的Reset响应为空
+      m_lastHeartbeatTime(HptimerGetUs()),     // 初始化上次心跳时间为当前时间
+      m_inTdmaMode(false),                     // 初始不在TDMA模式
+      m_scheduledStartTime(0),                 // 初始计划启动时间为0
+      m_isScheduledToStart(false),             // 初始未计划启动
+      m_hasDataToSend(false),                  // 初始无数据待发送
+      m_isFirstCollection(true),               // 初始为第一次采集
+      m_hasPendingSlaveControlResponse(false), // 初始无待回复的SlaveControl消息
+      m_hasPendingResetResponse(false),        // 初始无待回复的Reset消息
+      m_pendingSlaveControlResponse(nullptr),  // 初始化待回复的SlaveControl响应为空
+      m_pendingResetResponse(nullptr),         // 初始化待回复的Reset响应为空
       m_deviceStatus({}), m_masterComm()
 {
 
