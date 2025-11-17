@@ -1,3 +1,4 @@
+add_subdirectory(freertos_new)
 add_subdirectory(app)
 add_subdirectory(task)
 add_subdirectory(hptimer)
