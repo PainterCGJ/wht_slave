@@ -175,3 +175,22 @@ add_custom_target(format ALL
     COMMAND clang-format -i -style=file ${USER_SOURCE_FILES}
     COMMENT "Running clang-format on all files in User/"
 )
+
+# 在编译完成后输出版本信息
+add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E echo ""
+    COMMAND ${CMAKE_COMMAND} -E echo "=========================================="
+    COMMAND ${CMAKE_COMMAND} -E echo "Firmware Build Complete"
+    COMMAND ${CMAKE_COMMAND} -E echo "=========================================="
+    COMMAND ${CMAKE_COMMAND} -E echo "Project Name: ${CMAKE_PROJECT_NAME}"
+    COMMAND ${CMAKE_COMMAND} -E echo "Firmware Version: ${VERSION_STRING}"
+    COMMAND ${CMAKE_COMMAND} -E echo "  Major Version: ${PROJECT_VERSION_MAJOR}"
+    COMMAND ${CMAKE_COMMAND} -E echo "  Minor Version: ${PROJECT_VERSION_MINOR}"
+    COMMAND ${CMAKE_COMMAND} -E echo "  Patch Version: ${PROJECT_VERSION_PATCH}"
+    COMMAND ${CMAKE_COMMAND} -E echo "Build Date: ${BUILD_DATE}"
+    COMMAND ${CMAKE_COMMAND} -E echo "Build Type: ${CMAKE_BUILD_TYPE}"
+    COMMAND ${CMAKE_COMMAND} -E echo "UWB Chip Type: ${UWB_CHIP_TYPE}"
+    COMMAND ${CMAKE_COMMAND} -E echo "=========================================="
+    COMMAND ${CMAKE_COMMAND} -E echo ""
+    COMMENT "Displaying firmware version information"
+)
