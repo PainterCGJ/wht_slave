@@ -152,6 +152,14 @@ class ProtocolProcessor {
     std::queue<Frame> completeFrames_;   // 完整帧队列
     std::map<uint64_t, FragmentInfo> fragmentMap_; // 分片重组映射
 
+    // 可复用的buffer，避免反复创建和删除vector
+    std::vector<uint8_t> packBuffer_;      // 用于打包时的payload buffer
+    std::vector<uint8_t> packFrameBuffer_; // 用于打包时的frame buffer
+    std::vector<uint8_t> parseBuffer_;     // 用于解析时的messageData buffer
+    std::vector<uint8_t> fragmentBuffer_; // 用于分片时的临时buffer
+    std::vector<uint8_t> reassembleBuffer_; // 用于重组时的buffer
+    std::vector<uint8_t> extractFrameBuffer_; // 用于提取帧时的buffer
+
     static constexpr uint32_t FRAGMENT_TIMEOUT_MS =
         5000;                                  // 分片超时时间（毫秒）
     static constexpr size_t DEFAULT_MTU = 100; // 默认MTU大小

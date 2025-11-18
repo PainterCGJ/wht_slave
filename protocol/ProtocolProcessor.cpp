@@ -52,18 +52,30 @@ std::vector<uint8_t> ProtocolProcessor::packMaster2SlaveMessageSingle(
     frame.fragmentsSequence = fragmentsSequence;
     frame.moreFragmentsFlag = moreFragmentsFlag;
 
-    // 构建载荷
-    std::vector<uint8_t> payload;
-    payload.push_back(message.getMessageId());
-    writeUint32LE(payload, destinationId);
+    // 构建载荷，使用可复用的buffer
+    packBuffer_.clear();
+    packBuffer_.push_back(message.getMessageId());
+    writeUint32LE(packBuffer_, destinationId);
 
     auto messageData = message.serialize();
-    payload.insert(payload.end(), messageData.begin(), messageData.end());
+    packBuffer_.insert(packBuffer_.end(), messageData.begin(), messageData.end());
 
-    frame.payload = payload;
-    frame.packetLength = static_cast<uint16_t>(payload.size());
+    frame.packetLength = static_cast<uint16_t>(packBuffer_.size());
+    frame.payload = packBuffer_; // 这里仍然需要复制，因为Frame.payload是独立的
 
-    return frame.serialize();
+    // 使用可复用的frame buffer
+    packFrameBuffer_.clear();
+    packFrameBuffer_.reserve(7 + frame.payload.size());
+    packFrameBuffer_.push_back(FRAME_DELIMITER_1);
+    packFrameBuffer_.push_back(FRAME_DELIMITER_2);
+    packFrameBuffer_.push_back(frame.packetId);
+    packFrameBuffer_.push_back(frame.fragmentsSequence);
+    packFrameBuffer_.push_back(frame.moreFragmentsFlag);
+    packFrameBuffer_.push_back(frame.packetLength & 0xFF);
+    packFrameBuffer_.push_back((frame.packetLength >> 8) & 0xFF);
+    packFrameBuffer_.insert(packFrameBuffer_.end(), frame.payload.begin(), frame.payload.end());
+
+    return packFrameBuffer_;
 }
 
 std::vector<uint8_t> ProtocolProcessor::packSlave2MasterMessageSingle(
@@ -74,18 +86,30 @@ std::vector<uint8_t> ProtocolProcessor::packSlave2MasterMessageSingle(
     frame.fragmentsSequence = fragmentsSequence;
     frame.moreFragmentsFlag = moreFragmentsFlag;
 
-    // 构建载荷
-    std::vector<uint8_t> payload;
-    payload.push_back(message.getMessageId());
-    writeUint32LE(payload, slaveId);
+    // 构建载荷，使用可复用的buffer
+    packBuffer_.clear();
+    packBuffer_.push_back(message.getMessageId());
+    writeUint32LE(packBuffer_, slaveId);
 
     auto messageData = message.serialize();
-    payload.insert(payload.end(), messageData.begin(), messageData.end());
+    packBuffer_.insert(packBuffer_.end(), messageData.begin(), messageData.end());
 
-    frame.payload = payload;
-    frame.packetLength = static_cast<uint16_t>(payload.size());
+    frame.packetLength = static_cast<uint16_t>(packBuffer_.size());
+    frame.payload = packBuffer_;
 
-    return frame.serialize();
+    // 使用可复用的frame buffer
+    packFrameBuffer_.clear();
+    packFrameBuffer_.reserve(7 + frame.payload.size());
+    packFrameBuffer_.push_back(FRAME_DELIMITER_1);
+    packFrameBuffer_.push_back(FRAME_DELIMITER_2);
+    packFrameBuffer_.push_back(frame.packetId);
+    packFrameBuffer_.push_back(frame.fragmentsSequence);
+    packFrameBuffer_.push_back(frame.moreFragmentsFlag);
+    packFrameBuffer_.push_back(frame.packetLength & 0xFF);
+    packFrameBuffer_.push_back((frame.packetLength >> 8) & 0xFF);
+    packFrameBuffer_.insert(packFrameBuffer_.end(), frame.payload.begin(), frame.payload.end());
+
+    return packFrameBuffer_;
 }
 
 std::vector<uint8_t> ProtocolProcessor::packSlave2BackendMessageSingle(
@@ -96,19 +120,31 @@ std::vector<uint8_t> ProtocolProcessor::packSlave2BackendMessageSingle(
     frame.fragmentsSequence = fragmentsSequence;
     frame.moreFragmentsFlag = moreFragmentsFlag;
 
-    // 构建载荷
-    std::vector<uint8_t> payload;
-    payload.push_back(message.getMessageId());
-    writeUint32LE(payload, slaveId);
-    writeUint16LE(payload, deviceStatus.toUint16());
+    // 构建载荷，使用可复用的buffer
+    packBuffer_.clear();
+    packBuffer_.push_back(message.getMessageId());
+    writeUint32LE(packBuffer_, slaveId);
+    writeUint16LE(packBuffer_, deviceStatus.toUint16());
 
     auto messageData = message.serialize();
-    payload.insert(payload.end(), messageData.begin(), messageData.end());
+    packBuffer_.insert(packBuffer_.end(), messageData.begin(), messageData.end());
 
-    frame.payload = payload;
-    frame.packetLength = static_cast<uint16_t>(payload.size());
+    frame.packetLength = static_cast<uint16_t>(packBuffer_.size());
+    frame.payload = packBuffer_;
 
-    return frame.serialize();
+    // 使用可复用的frame buffer
+    packFrameBuffer_.clear();
+    packFrameBuffer_.reserve(7 + frame.payload.size());
+    packFrameBuffer_.push_back(FRAME_DELIMITER_1);
+    packFrameBuffer_.push_back(FRAME_DELIMITER_2);
+    packFrameBuffer_.push_back(frame.packetId);
+    packFrameBuffer_.push_back(frame.fragmentsSequence);
+    packFrameBuffer_.push_back(frame.moreFragmentsFlag);
+    packFrameBuffer_.push_back(frame.packetLength & 0xFF);
+    packFrameBuffer_.push_back((frame.packetLength >> 8) & 0xFF);
+    packFrameBuffer_.insert(packFrameBuffer_.end(), frame.payload.begin(), frame.payload.end());
+
+    return packFrameBuffer_;
 }
 
 std::vector<uint8_t> ProtocolProcessor::packBackend2MasterMessageSingle(
@@ -119,17 +155,29 @@ std::vector<uint8_t> ProtocolProcessor::packBackend2MasterMessageSingle(
     frame.fragmentsSequence = fragmentsSequence;
     frame.moreFragmentsFlag = moreFragmentsFlag;
 
-    // 构建载荷
-    std::vector<uint8_t> payload;
-    payload.push_back(message.getMessageId());
+    // 构建载荷，使用可复用的buffer
+    packBuffer_.clear();
+    packBuffer_.push_back(message.getMessageId());
 
     auto messageData = message.serialize();
-    payload.insert(payload.end(), messageData.begin(), messageData.end());
+    packBuffer_.insert(packBuffer_.end(), messageData.begin(), messageData.end());
 
-    frame.payload = payload;
-    frame.packetLength = static_cast<uint16_t>(payload.size());
+    frame.packetLength = static_cast<uint16_t>(packBuffer_.size());
+    frame.payload = packBuffer_;
 
-    return frame.serialize();
+    // 使用可复用的frame buffer
+    packFrameBuffer_.clear();
+    packFrameBuffer_.reserve(7 + frame.payload.size());
+    packFrameBuffer_.push_back(FRAME_DELIMITER_1);
+    packFrameBuffer_.push_back(FRAME_DELIMITER_2);
+    packFrameBuffer_.push_back(frame.packetId);
+    packFrameBuffer_.push_back(frame.fragmentsSequence);
+    packFrameBuffer_.push_back(frame.moreFragmentsFlag);
+    packFrameBuffer_.push_back(frame.packetLength & 0xFF);
+    packFrameBuffer_.push_back((frame.packetLength >> 8) & 0xFF);
+    packFrameBuffer_.insert(packFrameBuffer_.end(), frame.payload.begin(), frame.payload.end());
+
+    return packFrameBuffer_;
 }
 
 std::vector<uint8_t> ProtocolProcessor::packMaster2BackendMessageSingle(
@@ -140,17 +188,29 @@ std::vector<uint8_t> ProtocolProcessor::packMaster2BackendMessageSingle(
     frame.fragmentsSequence = fragmentsSequence;
     frame.moreFragmentsFlag = moreFragmentsFlag;
 
-    // 构建载荷
-    std::vector<uint8_t> payload;
-    payload.push_back(message.getMessageId());
+    // 构建载荷，使用可复用的buffer
+    packBuffer_.clear();
+    packBuffer_.push_back(message.getMessageId());
 
     auto messageData = message.serialize();
-    payload.insert(payload.end(), messageData.begin(), messageData.end());
+    packBuffer_.insert(packBuffer_.end(), messageData.begin(), messageData.end());
 
-    frame.payload = payload;
-    frame.packetLength = static_cast<uint16_t>(payload.size());
+    frame.packetLength = static_cast<uint16_t>(packBuffer_.size());
+    frame.payload = packBuffer_;
 
-    return frame.serialize();
+    // 使用可复用的frame buffer
+    packFrameBuffer_.clear();
+    packFrameBuffer_.reserve(7 + frame.payload.size());
+    packFrameBuffer_.push_back(FRAME_DELIMITER_1);
+    packFrameBuffer_.push_back(FRAME_DELIMITER_2);
+    packFrameBuffer_.push_back(frame.packetId);
+    packFrameBuffer_.push_back(frame.fragmentsSequence);
+    packFrameBuffer_.push_back(frame.moreFragmentsFlag);
+    packFrameBuffer_.push_back(frame.packetLength & 0xFF);
+    packFrameBuffer_.push_back((frame.packetLength >> 8) & 0xFF);
+    packFrameBuffer_.insert(packFrameBuffer_.end(), frame.payload.begin(), frame.payload.end());
+
+    return packFrameBuffer_;
 }
 
 bool ProtocolProcessor::parseFrame(const std::vector<uint8_t> &data,
@@ -269,8 +329,9 @@ bool ProtocolProcessor::parseMaster2SlavePacket(
     message = createMessage(PacketId::MASTER_TO_SLAVE, messageId);
     if (!message) return false;
 
-    std::vector<uint8_t> messageData(payload.begin() + 5, payload.end());
-    return message->deserialize(messageData);
+    // 使用可复用的buffer，避免创建临时vector
+    parseBuffer_.assign(payload.begin() + 5, payload.end());
+    return message->deserialize(parseBuffer_);
 }
 
 bool ProtocolProcessor::parseSlave2MasterPacket(
@@ -284,8 +345,9 @@ bool ProtocolProcessor::parseSlave2MasterPacket(
     message = createMessage(PacketId::SLAVE_TO_MASTER, messageId);
     if (!message) return false;
 
-    std::vector<uint8_t> messageData(payload.begin() + 5, payload.end());
-    return message->deserialize(messageData);
+    // 使用可复用的buffer，避免创建临时vector
+    parseBuffer_.assign(payload.begin() + 5, payload.end());
+    return message->deserialize(parseBuffer_);
 }
 
 bool ProtocolProcessor::parseSlave2BackendPacket(
@@ -300,8 +362,9 @@ bool ProtocolProcessor::parseSlave2BackendPacket(
     message = createMessage(PacketId::SLAVE_TO_BACKEND, messageId);
     if (!message) return false;
 
-    std::vector<uint8_t> messageData(payload.begin() + 7, payload.end());
-    return message->deserialize(messageData);
+    // 使用可复用的buffer，避免创建临时vector
+    parseBuffer_.assign(payload.begin() + 7, payload.end());
+    return message->deserialize(parseBuffer_);
 }
 
 bool ProtocolProcessor::parseBackend2MasterPacket(
@@ -314,8 +377,9 @@ bool ProtocolProcessor::parseBackend2MasterPacket(
     message = createMessage(PacketId::BACKEND_TO_MASTER, messageId);
     if (!message) return false;
 
-    std::vector<uint8_t> messageData(payload.begin() + 1, payload.end());
-    return message->deserialize(messageData);
+    // 使用可复用的buffer，避免创建临时vector
+    parseBuffer_.assign(payload.begin() + 1, payload.end());
+    return message->deserialize(parseBuffer_);
 }
 
 bool ProtocolProcessor::parseMaster2BackendPacket(
@@ -327,8 +391,9 @@ bool ProtocolProcessor::parseMaster2BackendPacket(
     message = createMessage(PacketId::MASTER_TO_BACKEND, messageId);
     if (!message) return false;
 
-    std::vector<uint8_t> messageData(payload.begin() + 1, payload.end());
-    return message->deserialize(messageData);
+    // 使用可复用的buffer，避免创建临时vector
+    parseBuffer_.assign(payload.begin() + 1, payload.end());
+    return message->deserialize(parseBuffer_);
 }
 
 // 支持自动分片的打包函数
@@ -437,51 +502,54 @@ std::vector<std::vector<uint8_t>> ProtocolProcessor::fragmentFrame(
     elog_v("ProtocolProcessor", "Maximum payload size per fragment: %d bytes",
            fragmentPayloadSize);
 
-    // Get original payload (starting from 7th byte)
-    std::vector<uint8_t> originalPayload(frameData.begin() + 7,
-                                         frameData.end());
+    // Get original payload (starting from 7th byte)，使用可复用的buffer
+    fragmentBuffer_.assign(frameData.begin() + 7, frameData.end());
     elog_v("ProtocolProcessor", "Original payload size: %d bytes",
-           originalPayload.size());
+           fragmentBuffer_.size());
 
     // Calculate how many fragments are needed
     uint8_t totalFragments = static_cast<uint8_t>(
-        (originalPayload.size() + fragmentPayloadSize - 1) /
+        (fragmentBuffer_.size() + fragmentPayloadSize - 1) /
         fragmentPayloadSize);
     elog_v("ProtocolProcessor", "Total fragments needed: %d", totalFragments);
 
     // Generate each fragment
     for (uint8_t i = 0; i < totalFragments; ++i) {
-        std::vector<uint8_t> fragment;
+        // 使用可复用的buffer构建分片，但需要创建副本返回
+        packFrameBuffer_.clear();
+        packFrameBuffer_.reserve(7 + fragmentPayloadSize);
 
         // Add frame header
-        fragment.push_back(FRAME_DELIMITER_1);
-        fragment.push_back(FRAME_DELIMITER_2);
-        fragment.push_back(packetId);
-        fragment.push_back(i);    // Fragment sequence number
-        fragment.push_back(
+        packFrameBuffer_.push_back(FRAME_DELIMITER_1);
+        packFrameBuffer_.push_back(FRAME_DELIMITER_2);
+        packFrameBuffer_.push_back(packetId);
+        packFrameBuffer_.push_back(i);    // Fragment sequence number
+        packFrameBuffer_.push_back(
             (i == totalFragments - 1) ? 0 : 1);    // moreFragmentsFlag
 
         // Calculate payload for this fragment
         size_t startPos = i * fragmentPayloadSize;
         size_t endPos =
-            std::min(startPos + fragmentPayloadSize, originalPayload.size());
+            std::min(startPos + fragmentPayloadSize, fragmentBuffer_.size());
         size_t fragmentSize = endPos - startPos;
 
         // Add length field
-        fragment.push_back(fragmentSize & 0xFF);
-        fragment.push_back((fragmentSize >> 8) & 0xFF);
+        packFrameBuffer_.push_back(fragmentSize & 0xFF);
+        packFrameBuffer_.push_back((fragmentSize >> 8) & 0xFF);
 
         // Add fragment payload
-        fragment.insert(fragment.end(), originalPayload.begin() + startPos,
-                        originalPayload.begin() + endPos);
+        packFrameBuffer_.insert(packFrameBuffer_.end(), 
+                                fragmentBuffer_.begin() + startPos,
+                                fragmentBuffer_.begin() + endPos);
 
         elog_v("ProtocolProcessor",
                "Fragment #%d/%d, sequence=%d, more_fragments=%d, "
                "fragment_size=%d, payload_size=%d",
                i, totalFragments - 1, i, (i == totalFragments - 1) ? 0 : 1,
-               fragment.size(), fragmentSize);
+               packFrameBuffer_.size(), fragmentSize);
 
-        fragments.push_back(fragment);
+        // 创建副本添加到结果中（因为调用者需要拥有数据）
+        fragments.push_back(packFrameBuffer_);
     }
 
     elog_v("ProtocolProcessor",
@@ -563,8 +631,8 @@ bool ProtocolProcessor::extractCompleteFrames() {
             break;    // 帧不完整，等待更多数据
         }
 
-        // 提取完整帧数据
-        std::vector<uint8_t> frameData(
+        // 提取完整帧数据，使用可复用的buffer
+        extractFrameBuffer_.assign(
             receiveBuffer_.begin() + frameStart,
             receiveBuffer_.begin() + frameStart + totalFrameSize);
 
@@ -575,7 +643,7 @@ bool ProtocolProcessor::extractCompleteFrames() {
 
         // 解析帧
         Frame frame;
-        if (Frame::deserialize(frameData, frame)) {
+        if (Frame::deserialize(extractFrameBuffer_, frame)) {
             elog_v(
                 "ProtocolProcessor",
                 "Frame parsed successfully, PacketId: 0x%02X, "
@@ -587,16 +655,16 @@ bool ProtocolProcessor::extractCompleteFrames() {
             if (frame.moreFragmentsFlag || frame.fragmentsSequence > 0) {
                 elog_v("ProtocolProcessor",
                        "Fragment frame detected, starting fragment reassembly");
-                // 处理分片重组
-                std::vector<uint8_t> completeFrame;
-                if (reassembleFragments(frame, completeFrame)) {
+                // 处理分片重组，使用可复用的buffer（确保buffer在使用前是干净的）
+                reassembleBuffer_.clear();
+                if (reassembleFragments(frame, reassembleBuffer_)) {
                     elog_v("ProtocolProcessor",
                            "Fragment reassembly completed, reassembled frame "
                            "size: %d bytes",
-                           completeFrame.size());
+                           reassembleBuffer_.size());
                     // 分片重组完成，解析完整帧
                     Frame completedFrame;
-                    if (Frame::deserialize(completeFrame, completedFrame)) {
+                    if (Frame::deserialize(reassembleBuffer_, completedFrame)) {
                         elog_v("ProtocolProcessor",
                                "Reassembled frame parsed successfully, "
                                "PacketId: 0x%02X, payload_length: %d",
@@ -707,8 +775,8 @@ bool ProtocolProcessor::reassembleFragments(
                "total fragments: %d",
                fragmentInfo.totalFragments);
 
-        // 重组完整载荷
-        std::vector<uint8_t> completePayload;
+        // 重组完整载荷，使用可复用的buffer
+        reassembleBuffer_.clear();
 
         // First add the complete payload of the first fragment
         auto firstFragment = fragmentInfo.fragments.find(0);
@@ -716,7 +784,7 @@ bool ProtocolProcessor::reassembleFragments(
             elog_v("ProtocolProcessor",
                    "Adding first fragment complete payload, size: %d",
                    firstFragment->second.size());
-            completePayload.insert(completePayload.end(),
+            reassembleBuffer_.insert(reassembleBuffer_.end(),
                                    firstFragment->second.begin(),
                                    firstFragment->second.end());
         } else {
@@ -729,26 +797,27 @@ bool ProtocolProcessor::reassembleFragments(
         for (uint8_t i = 1; i < fragmentInfo.totalFragments; ++i) {
             auto it = fragmentInfo.fragments.find(i);
             if (it != fragmentInfo.fragments.end()) {
-                completePayload.insert(completePayload.end(),
+                reassembleBuffer_.insert(reassembleBuffer_.end(),
                                        it->second.begin(), it->second.end());
             }
         }
 
         elog_v("ProtocolProcessor", "Reassembled complete payload size: %d",
-               completePayload.size());
+               reassembleBuffer_.size());
 
-        // Build complete frame
-        completeFrame.clear();
-        completeFrame.push_back(FRAME_DELIMITER_1);
-        completeFrame.push_back(FRAME_DELIMITER_2);
-        completeFrame.push_back(frame.packetId);
-        completeFrame.push_back(0);    // fragmentsSequence = 0
-        completeFrame.push_back(0);    // moreFragmentsFlag = 0
+        // Build complete frame (先保存payload，然后构建完整帧)
+        packFrameBuffer_.clear();
+        packFrameBuffer_.reserve(7 + reassembleBuffer_.size());
+        packFrameBuffer_.push_back(FRAME_DELIMITER_1);
+        packFrameBuffer_.push_back(FRAME_DELIMITER_2);
+        packFrameBuffer_.push_back(frame.packetId);
+        packFrameBuffer_.push_back(0);    // fragmentsSequence = 0
+        packFrameBuffer_.push_back(0);    // moreFragmentsFlag = 0
 
         // Add payload length
-        uint16_t payloadLength = static_cast<uint16_t>(completePayload.size());
-        completeFrame.push_back(payloadLength & 0xFF);
-        completeFrame.push_back((payloadLength >> 8) & 0xFF);
+        uint16_t payloadLength = static_cast<uint16_t>(reassembleBuffer_.size());
+        packFrameBuffer_.push_back(payloadLength & 0xFF);
+        packFrameBuffer_.push_back((payloadLength >> 8) & 0xFF);
 
         elog_v("ProtocolProcessor",
                "Setting complete frame header, PacketId: 0x%02X, payload "
@@ -756,8 +825,11 @@ bool ProtocolProcessor::reassembleFragments(
                frame.packetId, payloadLength);
 
         // Add payload
-        completeFrame.insert(completeFrame.end(), completePayload.begin(),
-                             completePayload.end());
+        packFrameBuffer_.insert(packFrameBuffer_.end(), reassembleBuffer_.begin(),
+                             reassembleBuffer_.end());
+        
+        // 将完整帧复制到输出参数
+        completeFrame = packFrameBuffer_;
 
         // elog_v("ProtocolProcessor",
         //        "Complete frame reassembly finished, total size: %d bytes, "
