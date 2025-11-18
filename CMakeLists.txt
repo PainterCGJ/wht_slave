@@ -274,7 +274,24 @@ set(VERSION_STRING
 )
 string(TIMESTAMP BUILD_DATE "%Y%m%d")
 
-# 添加版本定义，可以在代码中使用
+# 创建版本头文件（在构建时动态生成，确保版本信息总是最新的）
+set(VERSION_HEADER_DIR "${CMAKE_BINARY_DIR}/generated")
+set(VERSION_HEADER_FILE "${VERSION_HEADER_DIR}/firmware_version.h")
+
+# 确保目录存在
+file(MAKE_DIRECTORY ${VERSION_HEADER_DIR})
+
+# 配置版本头文件模板
+configure_file(
+    ${CMAKE_SOURCE_DIR}/cmake/version.h.in
+    ${VERSION_HEADER_FILE}
+    @ONLY
+)
+
+# 添加版本头文件目录到包含路径
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${VERSION_HEADER_DIR})
+
+# 添加版本定义（为了向后兼容，保留 add_definitions）
 # 注意：使用引号确保宏值正确传递
 add_definitions(
   -DFIRMWARE_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
@@ -282,6 +299,20 @@ add_definitions(
   -DFIRMWARE_VERSION_PATCH=${PROJECT_VERSION_PATCH}
   -DFIRMWARE_VERSION_STRING="${VERSION_STRING}"
   -DFIRMWARE_BUILD_DATE="${BUILD_DATE}")
+
+# 创建自定义目标，在每次构建前更新版本信息
+add_custom_target(update_version ALL
+    COMMAND ${CMAKE_COMMAND} -DCMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+                             -DGIT_EXECUTABLE=${GIT_EXECUTABLE}
+                             -DVERSION_HEADER_FILE=${VERSION_HEADER_FILE}
+                             -P ${CMAKE_SOURCE_DIR}/cmake/update_version.cmake
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Updating firmware version from git tag"
+    VERBATIM
+)
+
+# 让主目标依赖于版本更新目标，确保每次构建都更新版本
+add_dependencies(${CMAKE_PROJECT_NAME} update_version)
 
 # 验证版本号已正确设置
 message(STATUS "Firmware version: ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
