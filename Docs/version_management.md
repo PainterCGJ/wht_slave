@@ -51,12 +51,14 @@ git commit -m "feat!: 重构通信协议"
 # 推送代码
 git push origin main
 
-# 推送所有标签
+# 推送所有标签（重要：tag不会自动推送）
 git push --tags
 
 # 或推送特定标签
 git push origin v1.0.0
 ```
+
+**重要提示**：`git push` 默认**不会推送 tag**，必须显式推送 tag！
 
 ## Git Tag 格式
 
@@ -213,6 +215,55 @@ git push origin v1.0.0
 如果没有 tag，系统会：
 1. 使用 commit 数量生成版本号：`0.0.{commit_count}`
 2. 如果无法获取 commit 信息，使用默认版本：`0.0.0`
+
+## 从另一台电脑克隆/拉取代码
+
+### Clone 时获取 tag
+
+```bash
+# 方法1：clone 时自动获取所有 tag（推荐）
+git clone --tags <repository-url>
+
+# 方法2：clone 后手动获取 tag
+git clone <repository-url>
+cd <project-directory>
+git fetch --tags
+```
+
+### Pull 时获取 tag
+
+```bash
+# 拉取代码
+git pull origin main
+
+# 获取远程 tag（重要：pull 不会自动获取 tag）
+git fetch --tags
+
+# 或者使用 pull 时同时获取 tag
+git pull --tags origin main
+```
+
+### 验证 tag 是否正确获取
+
+```bash
+# 查看所有 tag
+git tag -l
+
+# 查看最新 tag
+git describe --tags --abbrev=0
+
+# 编译项目，查看版本号是否正确
+cmake --preset Release
+cmake --build --preset Release
+```
+
+### CMake 自动获取 tag
+
+CMakeLists.txt 已经包含了自动从远程获取 tag 的逻辑：
+- 如果本地没有 tag，会自动执行 `git fetch --tags`
+- 然后重新尝试读取 tag
+
+**注意**：这需要网络连接，如果无法连接远程仓库，将使用本地 tag 或默认版本。
 
 ## 从 VERSION 文件迁移
 

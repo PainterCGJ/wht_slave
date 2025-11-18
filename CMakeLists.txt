@@ -57,6 +57,7 @@ add_subdirectory(FreeRTOScpp)
 add_subdirectory(protocol)
 add_subdirectory(factory_test)
 add_subdirectory(bootloader)
+add_subdirectory(ota)
 
 # Link directories setup
 target_link_directories(
@@ -87,6 +88,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     FreeRTOScpp
     WhtsProtocol
     cx310
+    OTA
     # Add user defined libraries
 )
 
