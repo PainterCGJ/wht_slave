@@ -101,36 +101,73 @@ set(PROJECT_VERSION_MAJOR 0)
 set(PROJECT_VERSION_MINOR 0)
 set(PROJECT_VERSION_PATCH 0)
 
+# 查找 git 命令
+find_program(GIT_EXECUTABLE git PATHS
+    "C:/Program Files/Git/cmd"
+    "C:/Program Files (x86)/Git/cmd"
+    "C:/Program Files/Git/bin"
+    "C:/Program Files (x86)/Git/bin"
+    ENV PATH
+    NO_DEFAULT_PATH)
+
+if(NOT GIT_EXECUTABLE)
+    find_program(GIT_EXECUTABLE git)
+endif()
+
+if(GIT_EXECUTABLE)
+    message(STATUS "Found git: ${GIT_EXECUTABLE}")
+else()
+    message(WARNING "Git not found, version will be set to 0.0.0")
+endif()
+
 # 获取完整的 git describe（包含标签和commit信息）
-execute_process(
-  COMMAND git describe --tags --dirty --always
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  OUTPUT_VARIABLE GIT_DESCRIBE
-  ERROR_QUIET
-  OUTPUT_STRIP_TRAILING_WHITESPACE
-  RESULT_VARIABLE GIT_DESCRIBE_RESULT)
+if(GIT_EXECUTABLE)
+  execute_process(
+    COMMAND ${GIT_EXECUTABLE} describe --tags --dirty --always
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_DESCRIBE
+    ERROR_QUIET
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE GIT_DESCRIBE_RESULT)
+else()
+  set(GIT_DESCRIBE "")
+  set(GIT_DESCRIBE_RESULT 1)
+endif()
 
 # 尝试获取最近的标签
-execute_process(
-  COMMAND git describe --tags --abbrev=0
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  OUTPUT_VARIABLE GIT_TAG
-  ERROR_QUIET
-  OUTPUT_STRIP_TRAILING_WHITESPACE
-  RESULT_VARIABLE GIT_TAG_RESULT)
+if(GIT_EXECUTABLE)
+  execute_process(
+    COMMAND ${GIT_EXECUTABLE} describe --tags --abbrev=0
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_TAG
+    ERROR_QUIET
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE GIT_TAG_RESULT)
+else()
+  set(GIT_TAG "")
+  set(GIT_TAG_RESULT 1)
+endif()
+
+# 调试信息：显示 git 命令执行结果
+message(STATUS "Git tag command result: ${GIT_TAG_RESULT}")
+message(STATUS "Git tag value: '${GIT_TAG}'")
 
 # 如果本地没有标签，尝试从远程获取标签
 if(GIT_TAG_RESULT OR NOT GIT_TAG)
   message(STATUS "No local tags found, attempting to fetch tags from remote...")
-  execute_process(
-    COMMAND git fetch --tags --quiet
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    ERROR_QUIET
-    RESULT_VARIABLE FETCH_RESULT)
+    if(GIT_EXECUTABLE)
+      execute_process(
+        COMMAND ${GIT_EXECUTABLE} fetch --tags --quiet
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        ERROR_QUIET
+        RESULT_VARIABLE FETCH_RESULT)
+    else()
+      set(FETCH_RESULT 1)
+    endif()
   
-  if(NOT FETCH_RESULT)
+  if(NOT FETCH_RESULT AND GIT_EXECUTABLE)
     execute_process(
-      COMMAND git describe --tags --abbrev=0
+      COMMAND ${GIT_EXECUTABLE} describe --tags --abbrev=0
       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
       OUTPUT_VARIABLE GIT_TAG
       ERROR_QUIET
@@ -141,9 +178,9 @@ endif()
 
 # 获取commit数量（从最近标签到当前commit）
 set(COMMIT_COUNT 0)
-if(GIT_TAG)
+if(GIT_TAG AND GIT_EXECUTABLE)
   execute_process(
-    COMMAND git rev-list --count ${GIT_TAG}..HEAD
+    COMMAND ${GIT_EXECUTABLE} rev-list --count ${GIT_TAG}..HEAD
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     OUTPUT_VARIABLE COMMIT_COUNT
     ERROR_QUIET
@@ -151,10 +188,10 @@ if(GIT_TAG)
   if(NOT COMMIT_COUNT)
     set(COMMIT_COUNT 0)
   endif()
-else()
+elseif(GIT_EXECUTABLE)
   # 如果没有标签，获取总commit数
   execute_process(
-    COMMAND git rev-list --count HEAD
+    COMMAND ${GIT_EXECUTABLE} rev-list --count HEAD
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     OUTPUT_VARIABLE COMMIT_COUNT
     ERROR_QUIET
@@ -168,23 +205,29 @@ endif()
 # 支持 v1.0.0 和 1.0.0 两种格式
 set(VERSION_MATCH "")
 if(GIT_TAG)
-  # 先尝试匹配 v1.0.0 格式
-  string(REGEX MATCH "^v?([0-9]+)\\.([0-9]+)\\.([0-9]+)$" 
+  message(STATUS "Attempting to parse git tag: '${GIT_TAG}'")
+  
+  # 先移除 v 前缀（如果存在）
+  string(REGEX REPLACE "^v" "" GIT_TAG_CLEAN "${GIT_TAG}")
+  message(STATUS "Cleaned git tag: '${GIT_TAG_CLEAN}'")
+  
+  # 匹配版本号格式 MAJOR.MINOR.PATCH
+  string(REGEX MATCH "^([0-9]+)\\.([0-9]+)\\.([0-9]+)$" 
                      VERSION_MATCH 
-                     DUMMY
-                     PROJECT_VERSION_MAJOR 
-                     PROJECT_VERSION_MINOR 
-                     PROJECT_VERSION_PATCH 
-                     ${GIT_TAG})
-  # 如果失败，尝试匹配不带v前缀的格式
-  if(NOT VERSION_MATCH)
-    string(REGEX MATCH "([0-9]+)\\.([0-9]+)\\.([0-9]+)" 
-                       VERSION_MATCH 
-                       PROJECT_VERSION_MAJOR 
-                       PROJECT_VERSION_MINOR 
-                       PROJECT_VERSION_PATCH 
-                       ${GIT_TAG})
+                     "${GIT_TAG_CLEAN}")
+  
+  if(VERSION_MATCH)
+    # 提取各个部分
+    string(REGEX REPLACE "^([0-9]+)\\..*" "\\1" PROJECT_VERSION_MAJOR "${GIT_TAG_CLEAN}")
+    string(REGEX REPLACE "^[0-9]+\\.([0-9]+)\\..*" "\\1" PROJECT_VERSION_MINOR "${GIT_TAG_CLEAN}")
+    string(REGEX REPLACE "^[0-9]+\\.[0-9]+\\.([0-9]+)$" "\\1" PROJECT_VERSION_PATCH "${GIT_TAG_CLEAN}")
+    message(STATUS "Regex match successful: '${VERSION_MATCH}'")
+  else()
+    message(STATUS "Regex match failed for tag: '${GIT_TAG_CLEAN}'")
+    set(VERSION_MATCH "")
   endif()
+  
+  message(STATUS "Parsed version: MAJOR='${PROJECT_VERSION_MAJOR}', MINOR='${PROJECT_VERSION_MINOR}', PATCH='${PROJECT_VERSION_PATCH}'")
 endif()
 
 if(VERSION_MATCH)
