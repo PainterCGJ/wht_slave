@@ -31,6 +31,7 @@
 
 #include "cmsis_os2.h"
 #include "usart.h"
+#include "config.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -79,10 +80,10 @@ void elog_port_deinit(void) {}
  * @param size log size
  */
 void elog_port_output(const char *log, size_t size) {
-    RS485_TX_EN();
-    HAL_UART_Transmit_DMA(&RS485_UART, (uint8_t *)log, size);
+    ELOG_UART_TX_EN();
+    HAL_UART_Transmit_DMA(ELOG_UART_HANDLE, (uint8_t *)log, size);
     osSemaphoreAcquire(elog_dma_lockHandle, osWaitForever);
-    // RS485_RX_EN() 在DMA传输完成回调中调用
+    // ELOG_UART_RX_EN() 在DMA传输完成回调中调用
 }
 
 /**

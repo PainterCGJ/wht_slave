@@ -27,6 +27,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 
+#include "config.h"
 #include "elog.h"
 #include "factory_test.h"
 #include "gpio.h"
@@ -194,9 +195,9 @@ void StartDefaultTask(void *argument)
 /* USER CODE BEGIN Application */
 
 int __io_putchar(int ch) {
-    RS485_TX_EN();
-    HAL_UART_Transmit(&RS485_UART, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
-    RS485_RX_EN();
+    PRINTF_UART_TX_EN();
+    HAL_UART_Transmit(PRINTF_UART_HANDLE, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+    PRINTF_UART_RX_EN();
     return ch;
 }
 

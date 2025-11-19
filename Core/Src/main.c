@@ -31,6 +31,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 
+#include "config.h"
 #include "bootloader_flag.h"
 #include "cmsis_os2.h"
 #include "elog.h"
@@ -69,10 +70,11 @@ void MX_FREERTOS_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
-    if (huart->Instance == RS485_UART.Instance) {
+    // 检查是否是elog使用的串口
+    if (huart->Instance == ELOG_UART_HANDLE->Instance) {
         extern osSemaphoreId_t elog_dma_lockHandle;
         osSemaphoreRelease(elog_dma_lockHandle);
-        RS485_RX_EN(); // 传输完成后切换回接收模式
+        ELOG_UART_RX_EN(); // 传输完成后切换回接收模式
     }
 }
 /* USER CODE END 0 */

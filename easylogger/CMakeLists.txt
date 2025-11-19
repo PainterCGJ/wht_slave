@@ -15,6 +15,7 @@ target_include_directories(
          ${CMAKE_CURRENT_SOURCE_DIR}/plugins/file
          ${CMAKE_CURRENT_SOURCE_DIR}/port ${CMAKE_CURRENT_SOURCE_DIR}/src
          ${CMAKE_PROJECT_SOURCE_DIR}/Components/EasyLogger_Port
+         ${CMAKE_SOURCE_DIR}  # Add project root for config.h
          
          )
 

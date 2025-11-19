@@ -70,7 +70,9 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE # Add user sources here
 
 # Add include paths
 target_include_directories(
-  ${CMAKE_PROJECT_NAME} PRIVATE # Add user defined include paths
+  ${CMAKE_PROJECT_NAME} PRIVATE 
+  ${CMAKE_SOURCE_DIR}  # Add project root for config.h
+  # Add user defined include paths
 )
 
 # Add project symbols (macros)
