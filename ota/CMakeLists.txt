@@ -39,6 +39,19 @@ target_include_directories(get_id
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+# Add ota.c directly to the main executable (not as a static library)
+# This ensures it can link to STM32 HAL libraries
+target_sources(${PROJECT_NAME}
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/ota.c
+)
+
+# Set include directories for ota.c
+target_include_directories(${PROJECT_NAME}
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 # Create main OTA library (combines all OTA components)
 add_library(OTA INTERFACE)
 
