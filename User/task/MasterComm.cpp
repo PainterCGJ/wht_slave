@@ -1,6 +1,7 @@
 #include "MasterComm.h"
 
 #include "cmsis_os2.h"
+#include "config.h"
 #include <memory>
 
 // #include "deca_device_api.h"
@@ -155,8 +156,8 @@ int MasterComm::Initialize(void)
     // 创建UWB通信任务
     constexpr osThreadAttr_t uwbTaskAttributes = {
         .name = "uwbCommTask",
-        .stack_size = 1024 * 16, // 16KB stack size
-        .priority = (osPriority_t)osPriorityNormal,
+        .stack_size = TASK_STACK_SIZE_UWB_COMM,
+        .priority = (osPriority_t)TASK_PRIORITY_UWB_COMM,
     };
 
     uwbCommTaskHandle = osThreadNew(UwbCommTaskWrapper, this, &uwbTaskAttributes);

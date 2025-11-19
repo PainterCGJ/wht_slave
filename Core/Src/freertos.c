@@ -59,8 +59,8 @@ typedef StaticTask_t osStaticThreadDef_t;
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
-  .stack_size = 1024 * 16, // 8KB stack size
-  .priority = (osPriority_t) osPriorityNormal,
+  .stack_size = TASK_STACK_SIZE_DEFAULT,
+  .priority = (osPriority_t) TASK_PRIORITY_DEFAULT,
 };
 
 /* Private function prototypes -----------------------------------------------*/
@@ -68,15 +68,16 @@ const osThreadAttr_t defaultTask_attributes = {
 
 /* Definitions for elog */
 osThreadId_t elogHandle;
-uint32_t elogBuffer[512];
+/* elogBuffer size = TASK_STACK_SIZE_ELOG / sizeof(uint32_t) = 2048 / 4 = 512 */
+uint32_t elogBuffer[TASK_STACK_SIZE_ELOG / sizeof(uint32_t)];
 osStaticThreadDef_t elogControlBlock;
 const osThreadAttr_t elog_attributes = {
     .name = "elog",
     .stack_mem = &elogBuffer[0],
-    .stack_size = sizeof(elogBuffer),
+    .stack_size = TASK_STACK_SIZE_ELOG,
     .cb_mem = &elogControlBlock,
     .cb_size = sizeof(elogControlBlock),
-    .priority = (osPriority_t)osPriorityLow,
+    .priority = (osPriority_t)TASK_PRIORITY_ELOG,
 };
 /* Definitions for elog_lock */
 osSemaphoreId_t elog_lockHandle;

@@ -7,6 +7,7 @@
 #include "TaskCPP.h"
 #include "WhtsProtocol.h"
 #include "button.h"
+#include "config.h"
 #include "continuity_collector.h"
 #include "slave_device_state.h"
 #include "slot_manager.h"
@@ -198,7 +199,7 @@ class SlaveDevice
     /**
      * 数据采集管理任务类 - 管理数据采集状态和处理
      */
-    class DataCollectionTask final : public TaskClassS<1024>
+    class DataCollectionTask final : public TaskClassS<TASK_STACK_SIZE_DATA_COLLECTION>
     {
       public:
         explicit DataCollectionTask(SlaveDevice &parent);
@@ -214,7 +215,7 @@ class SlaveDevice
         static constexpr uint32_t PROCESS_INTERVAL_MS = 10; // 采集处理间隔
     };
 
-    class SlaveDataProcT final : public TaskClassS<8 * 1024>
+    class SlaveDataProcT final : public TaskClassS<TASK_STACK_SIZE_SLAVE_DATA_PROC>
     {
       public:
         explicit SlaveDataProcT(SlaveDevice &parent);
@@ -229,7 +230,7 @@ class SlaveDevice
     /**
      * 外设管理任务类 - 管理按钮、传感器、阀门等外设状态
      */
-    class AccessoryTask final : public TaskClassS<1024>
+    class AccessoryTask final : public TaskClassS<TASK_STACK_SIZE_ACCESSORY>
     {
       public:
         explicit AccessoryTask(SlaveDevice &parent);

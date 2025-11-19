@@ -515,7 +515,7 @@ void SlaveDevice::run() const
 
 // DataCollectionTask 实现
 SlaveDevice::DataCollectionTask::DataCollectionTask(SlaveDevice &parent)
-    : TaskClassS("DataCollectionTask", TaskPrio_Mid), parent(parent)
+    : TaskClassS("DataCollectionTask", static_cast<TaskPriority>(TASK_PRIORITY_DATA_COLLECTION)), parent(parent)
 {
 }
 
@@ -684,7 +684,7 @@ int SlaveDevice::send(const std::vector<uint8_t> &frame)
 
 // SlaveDataProcT 实现
 SlaveDevice::SlaveDataProcT::SlaveDataProcT(SlaveDevice &parent)
-    : TaskClassS("SlaveDataProcT", TaskPrio_Mid), parent(parent)
+    : TaskClassS("SlaveDataProcT", static_cast<TaskPriority>(TASK_PRIORITY_SLAVE_DATA_PROC)), parent(parent)
 {
 }
 
@@ -724,8 +724,8 @@ void SlaveDevice::SlaveDataProcT::task()
 
 // AccessoryTask 实现
 SlaveDevice::AccessoryTask::AccessoryTask(SlaveDevice &parent)
-    : TaskClassS("AccessoryTask", TaskPrio_Mid), parent(parent), key1("Key1", KEY1_GPIO_Port, KEY1_Pin),
-      unlockBtn("unlockBtn", UNLOCK_BTN_GPIO_Port, UNLOCK_BTN_Pin),
+    : TaskClassS("AccessoryTask", static_cast<TaskPriority>(TASK_PRIORITY_ACCESSORY)), parent(parent),
+      key1("Key1", KEY1_GPIO_Port, KEY1_Pin), unlockBtn("unlockBtn", UNLOCK_BTN_GPIO_Port, UNLOCK_BTN_Pin),
       auxBtn1("auxBtn1", AUX_BTN1_GPIO_Port, AUX_BTN1_Pin), auxBtn2("auxBtn2", AUX_BTN2_GPIO_Port, AUX_BTN2_Pin),
       pSensor("pSensor", P_SENSOR_GPIO_Port, P_SENSOR_Pin),
       clrSensor("clrSensor", CLR_SENSOR_GPIO_Port, CLR_SENSOR_Pin), valve1("Valve1", ELV1_GPIO_Port, ELV1_Pin),
