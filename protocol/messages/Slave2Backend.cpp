@@ -5,11 +5,11 @@ namespace Slave2Backend {
 
 // ConductionDataMessage 实现
 std::vector<uint8_t> ConductionDataMessage::serialize() const {
-    std::vector<uint8_t> result;
+    auto& result = getReusableVector();
     result.push_back(conductionLength & 0xFF);
     result.push_back((conductionLength >> 8) & 0xFF);
     result.insert(result.end(), conductionData.begin(), conductionData.end());
-    return result;
+    return result; // 返回副本，可复用的 vector 会在下次调用时被清空
 }
 
 bool ConductionDataMessage::deserialize(const std::vector<uint8_t> &data) {
@@ -25,11 +25,11 @@ bool ConductionDataMessage::deserialize(const std::vector<uint8_t> &data) {
 
 // ResistanceDataMessage 实现
 std::vector<uint8_t> ResistanceDataMessage::serialize() const {
-    std::vector<uint8_t> result;
+    auto& result = getReusableVector();
     result.push_back(resistanceLength & 0xFF);
     result.push_back((resistanceLength >> 8) & 0xFF);
     result.insert(result.end(), resistanceData.begin(), resistanceData.end());
-    return result;
+    return result; // 返回副本，可复用的 vector 会在下次调用时被清空
 }
 
 bool ResistanceDataMessage::deserialize(const std::vector<uint8_t> &data) {
@@ -45,10 +45,10 @@ bool ResistanceDataMessage::deserialize(const std::vector<uint8_t> &data) {
 
 // ClipDataMessage 实现
 std::vector<uint8_t> ClipDataMessage::serialize() const {
-    std::vector<uint8_t> result;
+    auto& result = getReusableVector();
     result.push_back(clipData & 0xFF);
     result.push_back((clipData >> 8) & 0xFF);
-    return result;
+    return result; // 返回副本，可复用的 vector 会在下次调用时被清空
 }
 
 bool ClipDataMessage::deserialize(const std::vector<uint8_t> &data) {

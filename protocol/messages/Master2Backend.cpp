@@ -5,7 +5,7 @@ namespace Master2Backend {
 
 // SlaveConfigResponseMessage 实现
 std::vector<uint8_t> SlaveConfigResponseMessage::serialize() const {
-    std::vector<uint8_t> result;
+    auto& result = getReusableVector();
     result.push_back(status);
     result.push_back(slaveNum);
 
@@ -19,7 +19,7 @@ std::vector<uint8_t> SlaveConfigResponseMessage::serialize() const {
         ByteUtils::writeUint16LE(result, slave.clipStatus);
     }
 
-    return result;
+    return result; // 返回副本，可复用的 vector 会在下次调用时被清空
 }
 
 bool SlaveConfigResponseMessage::deserialize(const std::vector<uint8_t> &data) {
@@ -51,7 +51,10 @@ bool SlaveConfigResponseMessage::deserialize(const std::vector<uint8_t> &data) {
 
 // ModeConfigResponseMessage 实现
 std::vector<uint8_t> ModeConfigResponseMessage::serialize() const {
-    return {status, mode};
+    auto& result = getReusableVector();
+    result.push_back(status);
+    result.push_back(mode);
+    return result; // 返回副本，可复用的 vector 会在下次调用时被清空
 }
 
 bool ModeConfigResponseMessage::deserialize(const std::vector<uint8_t> &data) {
@@ -64,7 +67,7 @@ bool ModeConfigResponseMessage::deserialize(const std::vector<uint8_t> &data) {
 
 // RstResponseMessage 实现
 std::vector<uint8_t> RstResponseMessage::serialize() const {
-    std::vector<uint8_t> result;
+    auto& result = getReusableVector();
     result.push_back(status);
     result.push_back(slaveNum);
 
@@ -76,7 +79,7 @@ std::vector<uint8_t> RstResponseMessage::serialize() const {
         ByteUtils::writeUint16LE(result, slave.clipStatus);
     }
 
-    return result;
+    return result; // 返回副本，可复用的 vector 会在下次调用时被清空
 }
 
 bool RstResponseMessage::deserialize(const std::vector<uint8_t> &data) {
@@ -106,7 +109,10 @@ bool RstResponseMessage::deserialize(const std::vector<uint8_t> &data) {
 
 // CtrlResponseMessage 实现
 std::vector<uint8_t> CtrlResponseMessage::serialize() const {
-    return {status, runningStatus};
+    auto& result = getReusableVector();
+    result.push_back(status);
+    result.push_back(runningStatus);
+    return result; // 返回副本，可复用的 vector 会在下次调用时被清空
 }
 
 bool CtrlResponseMessage::deserialize(const std::vector<uint8_t> &data) {
@@ -119,7 +125,7 @@ bool CtrlResponseMessage::deserialize(const std::vector<uint8_t> &data) {
 
 // PingResponseMessage 实现
 std::vector<uint8_t> PingResponseMessage::serialize() const {
-    std::vector<uint8_t> result;
+    auto& result = getReusableVector();
     result.push_back(pingMode);
 
     // Write total count (2 bytes, little endian)
@@ -131,7 +137,7 @@ std::vector<uint8_t> PingResponseMessage::serialize() const {
     // Write destination ID (4 bytes, little endian)
     ByteUtils::writeUint32LE(result, destinationId);
 
-    return result;
+    return result; // 返回副本，可复用的 vector 会在下次调用时被清空
 }
 
 bool PingResponseMessage::deserialize(const std::vector<uint8_t> &data) {
@@ -148,7 +154,10 @@ bool PingResponseMessage::deserialize(const std::vector<uint8_t> &data) {
 
 // IntervalConfigResponseMessage 实现
 std::vector<uint8_t> IntervalConfigResponseMessage::serialize() const {
-    return {status, intervalMs};
+    auto& result = getReusableVector();
+    result.push_back(status);
+    result.push_back(intervalMs);
+    return result; // 返回副本，可复用的 vector 会在下次调用时被清空
 }
 
 bool IntervalConfigResponseMessage::deserialize(const std::vector<uint8_t> &data) {
@@ -161,7 +170,7 @@ bool IntervalConfigResponseMessage::deserialize(const std::vector<uint8_t> &data
 
 // DeviceListResponseMessage 实现
 std::vector<uint8_t> DeviceListResponseMessage::serialize() const {
-    std::vector<uint8_t> result;
+    auto& result = getReusableVector();
     result.push_back(deviceCount);
 
     for (const auto &device : devices) {
@@ -175,7 +184,7 @@ std::vector<uint8_t> DeviceListResponseMessage::serialize() const {
         ByteUtils::writeUint16LE(result, device.versionPatch);
     }
 
-    return result;
+    return result; // 返回副本，可复用的 vector 会在下次调用时被清空
 }
 
 bool DeviceListResponseMessage::deserialize(const std::vector<uint8_t> &data) {

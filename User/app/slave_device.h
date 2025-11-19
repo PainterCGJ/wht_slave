@@ -277,6 +277,11 @@ class SlaveDevice
 
     // Initialize message handlers
     void InitializeMessageHandlers();
+
+    /**
+     * 打印系统剩余堆栈信息（私有方法）
+     */
+    void printSystemStackInfo() const;
 };
 
 } // namespace SlaveApp

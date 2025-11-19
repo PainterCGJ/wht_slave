@@ -5,7 +5,7 @@ namespace Master2Slave {
 
 // SyncMessage 实现
 std::vector<uint8_t> SyncMessage::serialize() const {
-    std::vector<uint8_t> result;
+    auto& result = getReusableVector();
     
     // 序列化模式（1字节）
     result.push_back(mode);
@@ -51,7 +51,7 @@ std::vector<uint8_t> SyncMessage::serialize() const {
         result.push_back(config.testCount);
     }
     
-    return result;
+    return result; // 返回副本，可复用的 vector 会在下次调用时被清空
 }
 
 bool SyncMessage::deserialize(const std::vector<uint8_t> &data) {
@@ -121,14 +121,14 @@ bool SyncMessage::deserialize(const std::vector<uint8_t> &data) {
 
 // PingReqMessage 实现
 std::vector<uint8_t> PingReqMessage::serialize() const {
-    std::vector<uint8_t> result;
+    auto& result = getReusableVector();
     result.push_back(sequenceNumber & 0xFF);
     result.push_back((sequenceNumber >> 8) & 0xFF);
     result.push_back(timestamp & 0xFF);
     result.push_back((timestamp >> 8) & 0xFF);
     result.push_back((timestamp >> 16) & 0xFF);
     result.push_back((timestamp >> 24) & 0xFF);
-    return result;
+    return result; // 返回副本，可复用的 vector 会在下次调用时被清空
 }
 
 bool PingReqMessage::deserialize(const std::vector<uint8_t> &data) {
@@ -140,7 +140,9 @@ bool PingReqMessage::deserialize(const std::vector<uint8_t> &data) {
 
 // ShortIdAssignMessage 实现
 std::vector<uint8_t> ShortIdAssignMessage::serialize() const {
-    return {shortId};
+    auto& result = getReusableVector();
+    result.push_back(shortId);
+    return result; // 返回副本，可复用的 vector 会在下次调用时被清空
 }
 
 bool ShortIdAssignMessage::deserialize(const std::vector<uint8_t> &data) {

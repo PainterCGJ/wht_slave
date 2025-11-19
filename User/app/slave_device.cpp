@@ -3,14 +3,17 @@
 
 #include <cstdio>
 
+#include "FreeRTOS.h"
 #include "MasterComm.h"
 #include "adc.h"
 #include "cmsis_os2.h"
+#include "config.h"
 #include "elog.h"
 #include "hal_uid.hpp"
 #include "hptimer.hpp"
 #include "main.h"
 #include "master_slave_message_handlers.h"
+#include "task.h"
 
 using namespace WhtsProtocol;
 
@@ -512,12 +515,54 @@ void SlaveDevice::run() const
         elog_d(TAG, "OtaTask initialized and started");
     }
 
+    // 定时输出堆栈信息
+    TickType_t lastStackPrintTime = 0;
+    const TickType_t stackPrintInterval = pdMS_TO_TICKS(5000); // 每5秒输出一次
+
+    // 首次输出一次堆栈信息（延迟一下让其他任务启动）
+    TaskBase::delay(2000);
+    printSystemStackInfo();
+    lastStackPrintTime = xTaskGetTickCount();
+
     while (true)
     {
         HAL_GPIO_TogglePin(RUN_LED_GPIO_Port, RUN_LED_Pin);
         HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+
+        // 定时输出堆栈信息
+        TickType_t currentTime = xTaskGetTickCount();
+        if ((currentTime - lastStackPrintTime) >= stackPrintInterval)
+        {
+            printSystemStackInfo();
+            lastStackPrintTime = currentTime;
+        }
+
         TaskBase::delay(500);
     }
+}
+
+void SlaveDevice::printSystemStackInfo() const
+{
+    // 获取当前剩余堆栈大小
+    size_t freeHeapSize = xPortGetFreeHeapSize();
+
+    // 获取历史最小剩余堆栈大小
+    size_t minEverFreeHeapSize = xPortGetMinimumEverFreeHeapSize();
+
+    // 计算堆栈使用率（使用配置的总堆栈大小）
+    const size_t totalHeapSize = FREERTOS_HEAP_SIZE;
+    uint32_t usagePercent = 0;
+    if (totalHeapSize > 0)
+    {
+        usagePercent = ((totalHeapSize - freeHeapSize) * 100) / totalHeapSize;
+    }
+
+    elog_i(TAG, "=== System Heap Stack Info ===");
+    elog_i(TAG, "Total Heap: %lu bytes", (unsigned long)totalHeapSize);
+    elog_i(TAG, "Free Heap: %lu bytes", (unsigned long)freeHeapSize);
+    elog_i(TAG, "Min Ever Free: %lu bytes", (unsigned long)minEverFreeHeapSize);
+    elog_i(TAG, "Usage: %lu%%", (unsigned long)usagePercent);
+    elog_i(TAG, "=============================");
 }
 
 // DataCollectionTask 实现
