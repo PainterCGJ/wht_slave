@@ -39,7 +39,7 @@ extern "C" {
  * 默认值：7 (UART7/RS485)
  */
 #ifndef PRINTF_OUTPUT_UART
-#define PRINTF_OUTPUT_UART    7
+#define PRINTF_OUTPUT_UART    4
 #endif
 
 /**
@@ -53,7 +53,7 @@ extern "C" {
  * 默认值：7 (UART7/RS485)
  */
 #ifndef ELOG_OUTPUT_UART
-#define ELOG_OUTPUT_UART      7
+#define ELOG_OUTPUT_UART      4
 #endif
 
 /* FreeRTOS Configuration ----------------------------------------------------*/
@@ -102,7 +102,7 @@ extern "C" {
 #endif
 
 #ifndef TASK_STACK_SIZE_OTA
-#define TASK_STACK_SIZE_OTA                    (4 * 1024)   // 4KB - OTA任务（预留）
+#define TASK_STACK_SIZE_OTA                    (1024)        // 1KB - OTA任务
 #endif
 
 /* Task Priority Definitions ------------------------------------------------*/

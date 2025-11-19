@@ -66,6 +66,7 @@ SlaveDevice::SlaveDevice()
     m_dataCollectionTask = std::make_unique<DataCollectionTask>(*this);
     m_slaveDataProcT = std::make_unique<SlaveDataProcT>(*this);
     m_accessoryTask = std::make_unique<AccessoryTask>(*this);
+    m_otaTask = std::make_unique<OtaTask>();
 }
 
 void SlaveDevice::InitializeMessageHandlers()
@@ -503,6 +504,12 @@ void SlaveDevice::run() const
     {
         m_accessoryTask->give();
         elog_d(TAG, "AccessoryTask initialized and started");
+    }
+
+    if (m_otaTask)
+    {
+        m_otaTask->give();
+        elog_d(TAG, "OtaTask initialized and started");
     }
 
     while (true)
