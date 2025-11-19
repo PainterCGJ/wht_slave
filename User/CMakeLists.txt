@@ -6,6 +6,7 @@ add_subdirectory(continuity_collector)
 add_subdirectory(slot_manager)
 add_subdirectory(uid)
 add_subdirectory(accessory)
+add_subdirectory(ota)
 
 if(UWB_CHIP_TYPE STREQUAL "DW1000")
   add_subdirectory(Dw1000)
