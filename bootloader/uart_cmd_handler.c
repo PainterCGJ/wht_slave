@@ -20,18 +20,23 @@
 /* Includes ------------------------------------------------------------------*/
 #include "uart_cmd_handler.h"
 
-#include <stdio.h>
 #include <string.h>
 
 #include "bootloader_flag.h"
 #include "cmsis_os2.h"
+#include "elog.h"
 #include "factory_test.h"
 #include "usart.h"
 
 /* Private variables ---------------------------------------------------------*/
+static const char *TAG = "uart_cmd";
 static char uart_cmd_buffer[UART_CMD_BUFFER_SIZE];
 static uint8_t uart_cmd_index = 0;
  uint8_t uart_rx_char;
+
+/* RS485数据接收队列 */
+#define RS485_RX_QUEUE_SIZE 1024
+static osMessageQueueId_t rs485_rx_queue = NULL;
 
 /* Task handles */
 osThreadId_t uartCmdTaskHandle;
@@ -90,21 +95,23 @@ void uart_cmd_handler_init(void) {
     memset(uart_cmd_buffer, 0, sizeof(uart_cmd_buffer));
     uart_cmd_index = 0;
 
+    // 启动第一次UART接收中断
+    RS485_RX_EN();
+    HAL_UART_Receive_IT(&RS485_UART, &uart_rx_char, 1);
+}
+
+/**
+ * @brief  创建UART命令处理任务（在FreeRTOS启动后调用）
+ * @retval None
+ */
+void uart_cmd_handler_create_task(void) {
     // 创建UART命令处理任务
     uartCmdTaskHandle =
         osThreadNew(uart_cmd_handler_task, NULL, &uartCmdTask_attributes);
 
-    if (uartCmdTaskHandle != NULL) {
-        printf("UART command handler initialized successfully\r\n");
-        printf("UART Command Handler Ready\r\n");
-        printf("Type 'help' for available commands\r\n");
-    } else {
-        printf("Failed to create UART command handler task\r\n");
+    if (uartCmdTaskHandle == NULL) {
+        elog_e(TAG, "Failed to create UART command handler task");
     }
-
-    // 启动第一次UART接收中断
-    RS485_RX_EN();
-    HAL_UART_Receive_IT(&RS485_UART, &uart_rx_char, 1);
 }
 
 /**
@@ -113,12 +120,64 @@ void uart_cmd_handler_init(void) {
  * @retval None
  */
 void uart_cmd_handler_task(void* argument) {
-    printf("UART command handler task started\r\n");
+    // 等待elog系统完全启动，避免日志乱序
+    osDelay(200);
+    
+    // 创建RS485数据接收队列（在FreeRTOS启动后）
+    rs485_rx_queue = osMessageQueueNew(RS485_RX_QUEUE_SIZE, sizeof(uint8_t), NULL);
+    if (rs485_rx_queue == NULL) {
+        elog_e(TAG, "Failed to create RS485 RX queue");
+    } else {
+        elog_i(TAG, "RS485 RX queue created (size: %d)", RS485_RX_QUEUE_SIZE);
+    }
+
+    elog_i(TAG, "UART command handler initialized successfully");
+    elog_i(TAG, "UART Command Handler Ready");
+    elog_i(TAG, "Type 'help' for available commands");
+    elog_d(TAG, "UART command handler task started");
 
     for (;;) {
         // 定期检查，避免过度占用CPU
         osDelay(100);
     }
+}
+
+/**
+ * @brief  获取RS485数据接收队列句柄
+ * @retval 队列句柄，如果未初始化则返回NULL
+ */
+osMessageQueueId_t uart_cmd_handler_get_rs485_rx_queue(void) {
+    return rs485_rx_queue;
+}
+
+/**
+ * @brief  从RS485接收队列中读取数据
+ * @param  data: 存储读取数据的缓冲区指针
+ * @param  timeout_ms: 超时时间（毫秒），0表示不阻塞，osWaitForever表示永久等待
+ * @retval 0表示成功，-1表示失败或超时
+ */
+int uart_cmd_handler_receive_rs485_data(uint8_t *data, uint32_t timeout_ms) {
+    if (rs485_rx_queue == NULL || data == NULL) {
+        return -1;
+    }
+
+    if (osMessageQueueGet(rs485_rx_queue, data, NULL, timeout_ms) == osOK) {
+        return 0;
+    }
+
+    return -1;
+}
+
+/**
+ * @brief  获取RS485接收队列中当前数据数量
+ * @retval 队列中的数据数量
+ */
+uint32_t uart_cmd_handler_get_rs485_rx_queue_count(void) {
+    if (rs485_rx_queue == NULL) {
+        return 0;
+    }
+
+    return osMessageQueueGetCount(rs485_rx_queue);
 }
 
 /**
@@ -129,30 +188,28 @@ void uart_cmd_handler_task(void* argument) {
 void process_uart_command(char* command) {
     trim_string(command);
 
-    printf("Processing command: '%s'\r\n", command);
+    elog_d(TAG, "Processing command: '%s'", command);
 
     if (strcmp(command, CMD_BOOTLOADER_UPGRADE) == 0) {
-        printf(
-            "Upgrading firmware... System will reset to bootloader mode.\r\n");
-        printf("Firmware upgrade command received\r\n");
+        elog_i(TAG, "Upgrading firmware... System will reset to bootloader mode.");
+        elog_i(TAG, "Firmware upgrade command received");
 
         // 触发系统复位进入bootloader
         trigger_system_reset_to_bootloader();
 
     } else if (strcmp(command, CMD_HELP) == 0) {
-        printf("Available commands:\r\n");
-        printf("  upgrade  - Enter bootloader mode for firmware upgrade\r\n");
-        printf("  version  - Show firmware version\r\n");
-        printf("  help     - Show this help message\r\n");
+        elog_i(TAG, "Available commands:");
+        elog_i(TAG, "  upgrade  - Enter bootloader mode for firmware upgrade");
+        elog_i(TAG, "  version  - Show firmware version");
+        elog_i(TAG, "  help     - Show this help message");
 
     } else if (strcmp(command, CMD_VERSION) == 0) {
-        printf("Firmware Version: 1.0.0\r\n");
-        printf("Build Date: " __DATE__ " " __TIME__ "\r\n");
-        printf("MCU: STM32F429ZI\r\n");
+        elog_i(TAG, "Firmware Version: 1.0.0");
+        elog_i(TAG, "Build Date: " __DATE__ " " __TIME__);
+        elog_i(TAG, "MCU: STM32F429ZI");
 
     } else if (strlen(command) > 0) {
-        printf("Unknown command: '%s'. Type 'help' for available commands.\r\n",
-               command);
+        elog_w(TAG, "Unknown command: '%s'. Type 'help' for available commands.", command);
     }
 }
 
@@ -163,6 +220,11 @@ void process_uart_command(char* command) {
  */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef* huart) {
     if (huart->Instance == RS485_UART.Instance) {
+        // 将接收到的数据存入队列（非阻塞方式，队列满时丢弃数据）
+        if (rs485_rx_queue != NULL) {
+            osMessageQueuePut(rs485_rx_queue, &uart_rx_char, 0, 0);
+        }
+
         // 检查是否是工厂测试入口指令（仅在检测期间有效）
         factory_test_process_entry_byte(uart_rx_char);
         

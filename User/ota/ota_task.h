@@ -2,6 +2,8 @@
 
 #include "TaskCPP.h"
 #include "config.h"
+#include "ltlp_api.h"
+#include "msg_def.h"
 
 /**
  * @brief OTA任务类 - 处理固件升级相关任务
@@ -25,6 +27,7 @@ class OtaTask final : public TaskClassS<TASK_STACK_SIZE_OTA>
     ~OtaTask() = default;
 
   private:
+    uint8_t m_ltlpReceiverBuffer[1024];
     /**
      * @brief 任务主循环
      *
@@ -46,4 +49,6 @@ class OtaTask final : public TaskClassS<TASK_STACK_SIZE_OTA>
      * @brief OTA处理间隔（毫秒）
      */
     static constexpr uint32_t PROCESS_INTERVAL_MS = 100;
+
+    static void onLtltpRecvOneFrame(LtlpFrame *pFrame, void *usrParm);
 };

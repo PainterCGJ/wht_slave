@@ -142,6 +142,10 @@ void MX_FREERTOS_Init(void) {
     /* creation of elog */
     elogHandle = osThreadNew(elog_entry, NULL, &elog_attributes);
 
+    /* creation of uart command handler task */
+    extern void uart_cmd_handler_create_task(void);
+    uart_cmd_handler_create_task();
+
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */

@@ -25,6 +25,7 @@ extern "C" {
 #endif
 
 /* Includes ------------------------------------------------------------------*/
+#include "cmsis_os2.h"
 
 /* Private defines -----------------------------------------------------------*/
 #define UART_CMD_BUFFER_SIZE    64
@@ -40,9 +41,15 @@ struct UART_HandleTypeDef;
 
 /* Function prototypes -------------------------------------------------------*/
 void uart_cmd_handler_init(void);
+void uart_cmd_handler_create_task(void);
 void uart_cmd_handler_restart_interrupt(void);
 void uart_cmd_handler_task(void *argument);
 void process_uart_command(char* command);
+
+/* RS485数据接收队列接口 */
+osMessageQueueId_t uart_cmd_handler_get_rs485_rx_queue(void);
+int uart_cmd_handler_receive_rs485_data(uint8_t *data, uint32_t timeout_ms);
+uint32_t uart_cmd_handler_get_rs485_rx_queue_count(void);
 
 #ifdef __cplusplus
 }
