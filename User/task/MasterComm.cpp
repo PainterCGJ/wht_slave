@@ -16,7 +16,7 @@ extern CX310_SlaveSpiAdapter *g_uwbAdapter;
 #include "elog.h"
 
 #define TX_QUEUE_SIZE 10
-#define RX_QUEUE_SIZE 10
+#define RX_QUEUE_SIZE 20
 
 // 静态包装函数，用于FreeRTOS任务创建
 void MasterComm::UwbCommTaskWrapper(void *argument)
@@ -95,17 +95,36 @@ void MasterComm::UwbCommTask()
 
         if (uwb->get_recv_data(buffer))
         {
-            rxMsg->dataLen = buffer.size();
-            // change to memcpy
-            memcpy(rxMsg->data, buffer.data(), rxMsg->dataLen);
-            rxMsg->timestamp = osKernelGetTickCount();
-            rxMsg->statusReg = 0;
-            osMessageQueuePut(uwbRxQueue, rxMsg.get(), 0, 0);
+            size_t bufferSize = buffer.size();
+            size_t offset = 0;
+            uint32_t timestamp = osKernelGetTickCount();
 
-            // 如果有回调函数，调用它
-            if (uwbRxCallback != nullptr)
+            // 如果数据大小超过单帧容量，分批次处理
+            while (offset < bufferSize)
             {
-                uwbRxCallback(rxMsg.get());
+                // 计算本次提取的数据长度
+                size_t chunkSize = (bufferSize - offset > FRAME_LEN_MAX) ? FRAME_LEN_MAX : (bufferSize - offset);
+
+                // 复制数据到消息结构
+                rxMsg->dataLen = chunkSize;
+                memcpy(rxMsg->data, buffer.data() + offset, chunkSize);
+                rxMsg->timestamp = timestamp;
+                rxMsg->statusReg = 0;
+
+                // 入队
+                if (osMessageQueuePut(uwbRxQueue, rxMsg.get(), 0, 0) != osOK)
+                {
+                    elog_e(TAG, "Failed to put UWB RX data to queue (queue full or error)");
+                    break; // 队列满时停止处理剩余数据
+                }
+
+                // 如果有回调函数，调用它
+                if (uwbRxCallback != nullptr)
+                {
+                    uwbRxCallback(rxMsg.get());
+                }
+
+                offset += chunkSize;
             }
         }
 
