@@ -28,6 +28,8 @@ class OtaTask final : public TaskClassS<TASK_STACK_SIZE_OTA>
 
   private:
     uint8_t m_ltlpReceiverBuffer[1024];
+    uint32_t m_ltlpReceiverBufferLen; ///< 接收缓冲区中已有数据的长度
+    uint8_t m_upgradeFlag;            ///< 升级标志
     /**
      * @brief 任务主循环
      *
@@ -38,7 +40,7 @@ class OtaTask final : public TaskClassS<TASK_STACK_SIZE_OTA>
     /**
      * @brief 处理OTA相关逻辑
      */
-    void processOta() const;
+    void processOta();
 
     /**
      * @brief 日志标签
@@ -48,7 +50,10 @@ class OtaTask final : public TaskClassS<TASK_STACK_SIZE_OTA>
     /**
      * @brief OTA处理间隔（毫秒）
      */
-    static constexpr uint32_t PROCESS_INTERVAL_MS = 100;
+    static constexpr uint32_t PROCESS_INTERVAL_MS = 5;
 
-    static void onLtltpRecvOneFrame(LtlpFrame *pFrame, void *usrParm);
+    static void ltlpSendFunc(uint8_t *pData, uint32_t len, void *usrParm);
+    static uint32_t ltlpNowTimeFunc(void *usrParm);
+    static void ltlpLogCallback(const char *message);
+    static void onLtlpRecvOneFrame(LtlpFrame *pFrame, void *usrParm);
 };

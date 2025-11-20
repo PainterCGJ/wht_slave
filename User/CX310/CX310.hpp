@@ -1006,6 +1006,9 @@ template <class Interface> class CX310
                     elog_e(TAG, "rx payload size is too small");
                     break;
                 }
+                if(!transparent_data.empty()){
+                    elog_w(TAG, "there is data has not been read");
+                }
                 for (auto it = recv_packet.packet.begin() + 2; it != recv_packet.packet.end(); it++)
                 {
                     transparent_data.push(*it);

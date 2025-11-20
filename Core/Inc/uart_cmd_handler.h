@@ -36,9 +36,6 @@ extern "C" {
 #define CMD_HELP                "help"
 #define CMD_VERSION             "version"
 
-/* Forward declarations -------------------------------------------------------*/
-struct UART_HandleTypeDef;
-
 /* Function prototypes -------------------------------------------------------*/
 void uart_cmd_handler_init(void);
 void uart_cmd_handler_create_task(void);

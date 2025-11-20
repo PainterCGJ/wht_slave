@@ -23,6 +23,9 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "elog.h"
+#include <stdio.h>
+#include "config.h"
+#include "usart.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -92,6 +95,49 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
+  // 读取 HardFault 状态寄存器
+  uint32_t hfsr = SCB->HFSR;
+  uint32_t cfsr = SCB->CFSR;
+  uint32_t shcsr = SCB->SHCSR;
+  uint32_t mmfar = SCB->MMFAR;
+  uint32_t bfar = SCB->BFAR;
+  
+  // 使用 printf 输出错误信息（同步输出，不依赖 elog 任务）
+  PRINTF_UART_TX_EN();
+  printf("\r\n!!! HardFault occurred !!!\r\n");
+  printf("HFSR: 0x%08lX\r\n", (unsigned long)hfsr);
+  printf("CFSR: 0x%08lX\r\n", (unsigned long)cfsr);
+  printf("SHCSR: 0x%08lX\r\n", (unsigned long)shcsr);
+  
+  // 检查是否是 MemFault 导致的 HardFault
+  if (shcsr & SCB_SHCSR_MEMFAULTACT_Msk) {
+    printf("MemFault active, MMFAR: 0x%08lX\r\n", (unsigned long)mmfar);
+  }
+  // 检查是否是 BusFault 导致的 HardFault
+  if (shcsr & SCB_SHCSR_BUSFAULTACT_Msk) {
+    printf("BusFault active, BFAR: 0x%08lX\r\n", (unsigned long)bfar);
+  }
+  // 检查是否是 UsageFault 导致的 HardFault
+  if (shcsr & SCB_SHCSR_USGFAULTACT_Msk) {
+    printf("UsageFault active\r\n");
+  }
+  // 检查 HFSR 的 FORCED 位（表示故障被升级为 HardFault）
+  if (hfsr & SCB_HFSR_FORCED_Msk) {
+    printf("HardFault was forced (escalated from another fault)\r\n");
+  }
+  // 检查向量表错误
+  if (hfsr & SCB_HFSR_VECTTBL_Msk) {
+    printf("Vector table read error\r\n");
+  }
+  // 检查调试事件
+  if (hfsr & SCB_HFSR_DEBUGEVT_Msk) {
+    printf("Debug event occurred\r\n");
+  }
+  
+  printf("Stack pointer may be corrupted, check debugger for more info\r\n");
+  PRINTF_UART_RX_EN();
+  
+  // 保留 elog 输出（虽然可能无法及时输出）
   elog_e("FAULT", "!!! HardFault occurred !!!");
   /* USER CODE END HardFault_IRQn 0 */
   while (1)
