@@ -209,7 +209,8 @@ int __io_putchar(int ch) {
 void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
 {
     // 栈溢出时会调用此函数
-    elog_e("FreeRTOS", "Stack overflow in task: %s", pcTaskName);
+    printf("FreeRTOS Stack overflow in task: %s\r\n", pcTaskName ? pcTaskName : "Unknown");
+    taskDISABLE_INTERRUPTS();
     for(;;); // 停止系统以便调试
 }
 
