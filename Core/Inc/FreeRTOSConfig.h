@@ -46,9 +46,8 @@
 /* USER CODE BEGIN Includes */
 /* Section where include file can be added */
 #include "config.h"
-#include <stdio.h>
 /* USER CODE END Includes */
-
+#include <stdio.h>
 /* Ensure definitions are only used by the compiler, and not by the assembler. */
 #if defined(__ICCARM__) || defined(__CC_ARM) || defined(__GNUC__)
   #include <stdint.h>
