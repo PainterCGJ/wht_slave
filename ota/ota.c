@@ -119,7 +119,7 @@ void ota_enter_bootloader(void) {
 
     // 准备标志位数据
     flag_data.magic = BOOTLOADER_FLAG_MAGIC;
-    flag_data.flag = APP_FLAG;
+    flag_data.flag = BOOTLOADER_FLAG;
 
     printf("Entering bootloader mode...\r\n");
     printf("Setting bootloader flag: magic=0x%08lX, flag=0x%08lX\r\n", 
@@ -141,6 +141,7 @@ void ota_enter_bootloader(void) {
 
     printf("Bootloader flag set successfully at address 0x%08lX\r\n", 
            (unsigned long)BOOTLOADER_FLAG_ADDRESS);
+    NVIC_SystemReset();
 }
 
 
