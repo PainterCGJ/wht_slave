@@ -340,20 +340,13 @@ add_custom_target(format ALL
 )
 
 # 在编译完成后输出版本信息
+# 使用构建时脚本获取最新版本，而不是配置阶段的缓存变量
 add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E echo ""
-    COMMAND ${CMAKE_COMMAND} -E echo "=========================================="
-    COMMAND ${CMAKE_COMMAND} -E echo "Firmware Build Complete"
-    COMMAND ${CMAKE_COMMAND} -E echo "=========================================="
-    COMMAND ${CMAKE_COMMAND} -E echo "Project Name: ${CMAKE_PROJECT_NAME}"
-    COMMAND ${CMAKE_COMMAND} -E echo "Firmware Version: ${VERSION_STRING}"
-    COMMAND ${CMAKE_COMMAND} -E echo "  Major Version: ${PROJECT_VERSION_MAJOR}"
-    COMMAND ${CMAKE_COMMAND} -E echo "  Minor Version: ${PROJECT_VERSION_MINOR}"
-    COMMAND ${CMAKE_COMMAND} -E echo "  Patch Version: ${PROJECT_VERSION_PATCH}"
-    COMMAND ${CMAKE_COMMAND} -E echo "Build Date: ${BUILD_DATE}"
-    COMMAND ${CMAKE_COMMAND} -E echo "Build Type: ${CMAKE_BUILD_TYPE}"
-    COMMAND ${CMAKE_COMMAND} -E echo "UWB Chip Type: ${UWB_CHIP_TYPE}"
-    COMMAND ${CMAKE_COMMAND} -E echo "=========================================="
-    COMMAND ${CMAKE_COMMAND} -E echo ""
+    COMMAND ${CMAKE_COMMAND} 
+            -DCMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+            -DPROJECT_NAME=${CMAKE_PROJECT_NAME}
+            -DBUILD_TYPE=${CMAKE_BUILD_TYPE}
+            -DUWB_CHIP_TYPE=${UWB_CHIP_TYPE}
+            -P ${CMAKE_SOURCE_DIR}/cmake/get_build_version.cmake
     COMMENT "Displaying firmware version information"
 )
