@@ -59,8 +59,8 @@ if(GIT_EXECUTABLE)
     endif()
 endif()
 
-# 构建版本字符串，格式：v_0_10_2
-set(VERSION_SUFFIX "v_${VERSION_MAJOR}_${VERSION_MINOR}_${VERSION_PATCH}")
+# 构建版本字符串，格式：v0_10_3
+set(VERSION_SUFFIX "v${VERSION_MAJOR}_${VERSION_MINOR}_${VERSION_PATCH}")
 
 # 使用传入的固件输出目录，如果没有则计算
 # 注意：生成器表达式可能无法正确传递，所以优先使用计算值
