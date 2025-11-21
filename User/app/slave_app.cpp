@@ -4,6 +4,9 @@
 #include "cmsis_os2.h"
 #include "elog.h"
 #include "slave_device.h"
+#if ENABLE_OTA_TASK
+#include "uwb_ltlp_queue.h"
+#endif
 const char *TAG = "slave_app";
 
 using namespace SlaveApp;
@@ -24,6 +27,14 @@ extern "C" uint32_t SlaveDeviceGetSyncTimestampMs(void *device)
 
 extern "C" int main_app(void)
 {
+#if ENABLE_OTA_TASK
+    // 初始化UWB和LTLP之间的通信队列
+    if (uwb_ltlp_queue_init() != 0)
+    {
+        elog_e(TAG, "Failed to initialize UWB-LTLP queues");
+    }
+#endif
+
     // 使用 new 在堆上分配，避免占用栈空间
     SlaveDevice *pSlaveDevice = new SlaveDevice();
 

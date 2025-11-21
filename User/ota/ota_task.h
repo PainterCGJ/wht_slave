@@ -27,9 +27,15 @@ class OtaTask final : public TaskClassS<TASK_STACK_SIZE_OTA>
     ~OtaTask() = default;
 
   private:
+    typedef enum
+    {
+        DB9_PORT = 0,
+        UWB_PORT
+    } LtlpPortTypeDef;
     uint8_t m_ltlpReceiverBuffer[1024];
     uint32_t m_ltlpReceiverBufferLen; ///< 接收缓冲区中已有数据的长度
     uint8_t m_upgradeFlag;            ///< 升级标志
+    LtlpPortTypeDef m_ltlpPort;       ///< LTLP端口
     /**
      * @brief 任务主循环
      *

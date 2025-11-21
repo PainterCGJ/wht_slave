@@ -15,6 +15,7 @@
 #include "main.h"
 #include "master_slave_message_handlers.h"
 #include "task.h"
+#include "uwb_ltlp_queue.h"
 
 using namespace WhtsProtocol;
 
@@ -70,7 +71,9 @@ SlaveDevice::SlaveDevice()
     m_dataCollectionTask = std::make_unique<DataCollectionTask>(*this);
     m_slaveDataProcT = std::make_unique<SlaveDataProcT>(*this);
     m_accessoryTask = std::make_unique<AccessoryTask>(*this);
+#if ENABLE_OTA_TASK
     m_otaTask = std::make_unique<OtaTask>();
+#endif
 }
 
 void SlaveDevice::InitializeMessageHandlers()
@@ -520,11 +523,13 @@ void SlaveDevice::run() const
         elog_d(TAG, "AccessoryTask initialized and started");
     }
 
+#if ENABLE_OTA_TASK
     if (m_otaTask)
     {
         m_otaTask->give();
         elog_d(TAG, "OtaTask initialized and started");
     }
+#endif
 
     // 定时输出堆栈信息
     TickType_t lastStackPrintTime = 0;
@@ -603,6 +608,7 @@ void SlaveDevice::DataCollectionTask::task()
             {
                 elog_v(TAG, "SlotManager stopped, single cycle completed");
                 parent.m_isCollecting = false;
+                uwb_ltlp_set_conducting_state(false); // 更新全局导通检测状态标志
                 parent.m_deviceState = SlaveDeviceState::IDLE;
                 parent.m_isScheduledToStart = false;
                 parent.m_scheduledStartTime = 0;
@@ -657,6 +663,7 @@ void SlaveDevice::DataCollectionTask::processDataCollection() const
                 parent.m_continuityCollector->StartCollection() && parent.m_slotManager->Start())
             {
                 parent.m_isCollecting = true;
+                uwb_ltlp_set_conducting_state(true); // 更新全局导通检测状态标志
                 parent.m_deviceState = SlaveDeviceState::RUNNING;
                 parent.m_isScheduledToStart = false;
                 parent.m_scheduledStartTime = 0;

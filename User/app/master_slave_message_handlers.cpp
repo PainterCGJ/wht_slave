@@ -3,6 +3,7 @@
 #include "elog.h"
 #include "hptimer.hpp"
 #include "slave_device.h"
+#include "uwb_ltlp_queue.h"
 
 using namespace WhtsProtocol;
 
@@ -167,6 +168,7 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
             device->m_continuityCollector->StartCollection() && device->m_slotManager->Start())
         {
             device->m_isCollecting = true;
+            uwb_ltlp_set_conducting_state(true); // 更新全局导通检测状态标志
             device->m_deviceState = SlaveDeviceState::RUNNING;
             device->m_isFirstCollection = true;
             elog_v("SyncMessageHandler", "Data collection and slot management started successfully");

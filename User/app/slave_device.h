@@ -9,7 +9,9 @@
 #include "button.h"
 #include "config.h"
 #include "continuity_collector.h"
+#if ENABLE_OTA_TASK
 #include "ota_task.h"
+#endif
 #include "slave_device_state.h"
 #include "slot_manager.h"
 
@@ -270,7 +272,9 @@ class SlaveDevice
     std::unique_ptr<DataCollectionTask> m_dataCollectionTask;
     std::unique_ptr<SlaveDataProcT> m_slaveDataProcT;
     std::unique_ptr<AccessoryTask> m_accessoryTask;
+#if ENABLE_OTA_TASK
     std::unique_ptr<OtaTask> m_otaTask;
+#endif
 
     // Message handlers array for O(1) lookup
     IMaster2SlaveMessageHandler *messageHandlers_[256] = {};

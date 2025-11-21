@@ -7,7 +7,14 @@
 // 先包含uart_cmd_handler.h（它只有前向声明），再包含usart.h（完整定义）
 #include "uart_cmd_handler.h"
 #include "usart.h"
+#include "uwb_ltlp_queue.h"
 #include <string.h>
+
+// 用于跟踪LTLP发送状态
+static bool s_ltlp_sending_to_uwb = false;
+
+// LTLP发送完成回调函数（前向声明）
+static void onLtlpSendAllDataDone(LtlpFrame *pFrame, void *usrParm);
 
 OtaTask::OtaTask() : TaskClassS("OtaTask", static_cast<TaskPriority>(TASK_PRIORITY_OTA)), m_ltlpReceiverBufferLen(0)
 {
@@ -25,12 +32,12 @@ void OtaTask::task()
     ltlpSetting.assambleBufferSize = 0;
     ltlpInit(&ltlpSetting);
     ltlpSetCallback(LTLP_CLLBACK_ON_RECV_ONE_FRAME, onLtlpRecvOneFrame, this);
+    ltlpSetCallback(LTLP_CALLBACK_ON_SEND_ALL_DATA_DONE, onLtlpSendAllDataDone, this);
     ltlpSetLogger(ltlpLogCallback);
     elog_d(TAG, "OTA task started");
     elog_d(TAG, "Device ID: %08X", ltlpSetting.localID);
     for (;;)
     {
-        ltlpRun();
         // 处理OTA相关逻辑
         processOta();
         if (m_upgradeFlag == 1)
@@ -38,7 +45,7 @@ void OtaTask::task()
             m_upgradeFlag = 0;
             ota_enter_bootloader();
         }
-
+        ltlpRun();
         // 延时，避免CPU占用过高
         TaskBase::delay(PROCESS_INTERVAL_MS);
     }
@@ -71,6 +78,8 @@ void OtaTask::ltlpLogCallback(const char *message)
 }
 void OtaTask::processOta()
 {
+    uint8_t data;
+    m_ltlpReceiverBufferLen = 0;
     // 获取RS485接收队列
     osMessageQueueId_t rs485_rx_queue = uart_cmd_handler_get_rs485_rx_queue();
     if (rs485_rx_queue == NULL)
@@ -79,57 +88,109 @@ void OtaTask::processOta()
         return; // 队列未创建，直接返回
     }
 
-    // 从队列中读取数据（非阻塞方式）
-    uint8_t data;
-    uint32_t receivedCount = 0;
-    const uint32_t maxReadPerCycle = 256; // 每次最多读取256字节，避免长时间占用
+    // 从UWB->LTLP队列读取数据（非阻塞方式）
+    osMessageQueueId_t uwb_to_ltlp_queue = uwb_ltlp_get_uwb_to_ltlp_queue();
+    if (uwb_to_ltlp_queue != NULL)
+    {
+        // 读取UWB->LTLP队列中的数据，直到队列为空或达到最大读取数量
+        while (m_ltlpReceiverBufferLen < sizeof(m_ltlpReceiverBuffer))
+        {
+            if (m_ltlpReceiverBufferLen >= sizeof(m_ltlpReceiverBuffer))
+            {
+                // 缓冲区已满，记录警告并清空缓冲区
+                elog_w(TAG, "LTLP receiver buffer overflow, clearing buffer");
+                break;
+            }
+            osStatus_t status = osMessageQueueGet(uwb_to_ltlp_queue, &data, NULL, 0); // 非阻塞
+            if (status != osOK)
+            {
+                break; // 队列为空，退出循环
+            }
+
+            // 将数据存入缓冲区
+            m_ltlpReceiverBuffer[m_ltlpReceiverBufferLen++] = data;
+        }
+        m_ltlpPort = UWB_PORT;
+        if (m_ltlpReceiverBufferLen > 0)
+        {
+            elog_d(TAG, "Received %d bytes from uwb, parsing", m_ltlpReceiverBufferLen);
+            ltlpParse(m_ltlpReceiverBuffer, m_ltlpReceiverBufferLen);
+            m_ltlpReceiverBufferLen = 0;
+        }
+    }
 
     // 读取队列中的数据，直到队列为空或达到最大读取数量
-    while (receivedCount < maxReadPerCycle)
+    while (m_ltlpReceiverBufferLen < sizeof(m_ltlpReceiverBuffer))
     {
+        // 检查缓冲区是否还有空间
+        if (m_ltlpReceiverBufferLen >= sizeof(m_ltlpReceiverBuffer))
+        {
+            // 缓冲区已满，记录警告并清空缓冲区
+            elog_w(TAG, "LTLP receiver buffer overflow, clearing buffer");
+            break;
+        }
+
         osStatus_t status = osMessageQueueGet(rs485_rx_queue, &data, NULL, 0); // 非阻塞
         if (status != osOK)
         {
             break; // 队列为空，退出循环
         }
 
-        // 检查缓冲区是否还有空间
-        if (m_ltlpReceiverBufferLen >= sizeof(m_ltlpReceiverBuffer))
-        {
-            // 缓冲区已满，记录警告并清空缓冲区
-            elog_w(TAG, "LTLP receiver buffer overflow, clearing buffer");
-            m_ltlpReceiverBufferLen = 0;
-        }
-
         // 将数据存入缓冲区
         m_ltlpReceiverBuffer[m_ltlpReceiverBufferLen++] = data;
-        receivedCount++;
     }
-    // elog_d(TAG, "Received %d bytes", receivedCount);
+    m_ltlpPort = DB9_PORT;
     // 如果有数据，调用ltlpParse解析
     if (m_ltlpReceiverBufferLen > 0)
     {
         elog_d(TAG, "Received %d bytes, parsing", m_ltlpReceiverBufferLen);
         ltlpParse(m_ltlpReceiverBuffer, m_ltlpReceiverBufferLen);
-        // 解析后清空缓冲区（ltlpParse会处理数据，我们只需要提供原始数据）
-        // 注意：如果ltlpParse需要保留部分数据用于帧重组，应该在ltlp内部处理
-        // 这里我们每次都将所有数据传给ltlpParse，由它决定如何处理
         m_ltlpReceiverBufferLen = 0;
     }
 }
 
 void OtaTask::ltlpSendFunc(uint8_t *pData, uint32_t len, void *usrParm)
 {
-    (void)usrParm; // 未使用的参数
+    OtaTask *pThis = static_cast<OtaTask *>(usrParm);
 
-    // 切换到RS485发送模式
-    RS485_TX_EN();
+    // 获取LTLP->UWB队列
+    if (pThis->m_ltlpPort == UWB_PORT)
+    {
+        osMessageQueueId_t ltlp_to_uwb_queue = uwb_ltlp_get_ltlp_to_uwb_queue();
+        if (ltlp_to_uwb_queue != NULL)
+        {
+            // 如果是第一次发送数据，清除之前的数据就绪标志
+            if (!s_ltlp_sending_to_uwb)
+            {
+                uwb_ltlp_clear_ltlp_data_ready();
+            }
 
-    // 通过RS485发送数据
-    HAL_UART_Transmit(&RS485_UART, pData, len, HAL_MAX_DELAY);
+            // 将数据逐字节入队到LTLP->UWB队列
+            for (uint32_t i = 0; i < len; i++)
+            {
+                uint8_t byte = pData[i];
+                if (osMessageQueuePut(ltlp_to_uwb_queue, &byte, 0, 0) != osOK)
+                {
+                    // 队列满时记录警告，但不中断处理
+                    elog_w(TAG, "LTLP->UWB queue full, dropping byte");
+                    break;
+                }
+            }
+            s_ltlp_sending_to_uwb = true; // 标记正在向UWB发送数据
+        }
+    }
+    else if (pThis->m_ltlpPort == DB9_PORT)
+    {
+        // 同时保持原有的RS485发送功能（如果需要）
+        // 切换到RS485发送模式
+        RS485_TX_EN();
 
-    // 切换回RS485接收模式
-    RS485_RX_EN();
+        // 通过RS485发送数据
+        HAL_UART_Transmit(&RS485_UART, pData, len, HAL_MAX_DELAY);
+
+        // 切换回RS485接收模式
+        RS485_RX_EN();
+    }
 }
 
 uint32_t OtaTask::ltlpNowTimeFunc(void *usrParm)
@@ -159,5 +220,20 @@ void OtaTask::onLtlpRecvOneFrame(LtlpFrame *pFrame, void *usrParm)
     }
     default:
         break;
+    }
+}
+
+// LTLP发送完成回调函数
+static void onLtlpSendAllDataDone(LtlpFrame *pFrame, void *usrParm)
+{
+    (void)pFrame;
+    (void)usrParm;
+
+    // 所有数据已发送完成，设置事件标志位
+    if (s_ltlp_sending_to_uwb)
+    {
+        uwb_ltlp_set_ltlp_data_ready();
+        s_ltlp_sending_to_uwb = false;
+        elog_d("OtaTask", "LTLP data ready flag set");
     }
 }

@@ -9,6 +9,9 @@
 // #include "port.h"
 #include "CX310.hpp"
 #include "uwb_interface.hpp"
+#if ENABLE_OTA_TASK
+#include "uwb_ltlp_queue.h"
+#endif
 
 // 外部声明全局指针
 extern CX310_SlaveSpiAdapter *g_uwbAdapter;
@@ -34,18 +37,24 @@ void MasterComm::UwbCommTask()
     auto txMsg = std::make_unique<UwbTxMsg>();
     auto rxMsg = std::make_unique<uwbRxMsg>();
     auto uwb = std::make_unique<CX310<CX310_SlaveSpiAdapter>>();
-
+    osDelay(100);
     // 设置全局指针，用于中断处理
     g_uwbAdapter = &uwb->get_interface();
 
     std::vector<uint8_t> buffer = {0};
 
+    elog_i(TAG, "UWB task started, initializing UWB...");
     if (uwb->init())
     {
         elog_i(TAG, "uwb.init success");
     }
+    else
+    {
+        elog_e(TAG, "uwb.init failed");
+    }
     osDelay(3);
     uwb->set_recv_mode();
+    elog_i(TAG, "UWB set to receive mode");
 
     // if DIP1 reset, set uwb channel to 6
     // else if DIP2 reset, set uwb channel to 7
@@ -93,6 +102,54 @@ void MasterComm::UwbCommTask()
             }
         }
 
+#if ENABLE_OTA_TASK
+        // 只有在非导通检测模式下，才检查LTLP->UWB队列是否有数据
+        if (!uwb_ltlp_is_conducting())
+        {
+            osEventFlagsId_t event_flags = uwb_ltlp_get_event_flags();
+            osMessageQueueId_t ltlp_to_uwb_queue = uwb_ltlp_get_ltlp_to_uwb_queue();
+
+            if (event_flags != NULL && ltlp_to_uwb_queue != NULL)
+            {
+                // 检查LTLP数据就绪事件标志
+                uint32_t flags = osEventFlagsGet(event_flags);
+                if ((flags & UWB_LTLP_EVENT_LTLP_DATA_READY) != 0)
+                {
+                    // 从LTLP->UWB队列读取数据并发送
+                    std::vector<uint8_t> ltlp_data;
+                    uint8_t byte;
+                    const uint32_t max_read_per_cycle = 256; // 每次最多读取256字节
+                    uint32_t read_count = 0;
+
+                    // 读取队列中的数据
+                    while (read_count < max_read_per_cycle)
+                    {
+                        if (osMessageQueueGet(ltlp_to_uwb_queue, &byte, NULL, 0) != osOK)
+                        {
+                            break; // 队列为空，退出循环
+                        }
+                        ltlp_data.push_back(byte);
+                        read_count++;
+                    }
+
+                    // 如果有数据，通过UWB发送
+                    if (!ltlp_data.empty())
+                    {
+                        elog_d(TAG, "Sending %d bytes from LTLP to UWB", ltlp_data.size());
+                        uwb->update();
+                        uwb->data_transmit(ltlp_data);
+
+                        // 检查队列是否已空，如果为空则清除事件标志
+                        if (osMessageQueueGetCount(ltlp_to_uwb_queue) == 0)
+                        {
+                            uwb_ltlp_clear_ltlp_data_ready();
+                        }
+                    }
+                }
+            }
+        }
+#endif
+
         if (uwb->get_recv_data(buffer))
         {
             size_t bufferSize = buffer.size();
@@ -111,7 +168,7 @@ void MasterComm::UwbCommTask()
                 rxMsg->timestamp = timestamp;
                 rxMsg->statusReg = 0;
 
-                // 入队
+                // 入队到UWB接收队列（用于SlaveDataProcT任务）
                 if (osMessageQueuePut(uwbRxQueue, rxMsg.get(), 0, 0) != osOK)
                 {
                     elog_e(TAG, "Failed to put UWB RX data to queue (queue full or error)");
@@ -123,6 +180,28 @@ void MasterComm::UwbCommTask()
                 {
                     uwbRxCallback(rxMsg.get());
                 }
+
+#if ENABLE_OTA_TASK
+                // 如果不在导通检测状态，将数据入队到UWB->LTLP队列
+                if (!uwb_ltlp_is_conducting())
+                {
+                    osMessageQueueId_t uwb_to_ltlp_queue = uwb_ltlp_get_uwb_to_ltlp_queue();
+                    if (uwb_to_ltlp_queue != NULL)
+                    {
+                        // 将接收到的数据逐字节入队
+                        for (size_t i = 0; i < chunkSize; i++)
+                        {
+                            uint8_t byte = rxMsg->data[i];
+                            if (osMessageQueuePut(uwb_to_ltlp_queue, &byte, 0, 0) != osOK)
+                            {
+                                // 队列满时记录警告，但不中断处理
+                                elog_w(TAG, "UWB->LTLP queue full, dropping byte");
+                                break;
+                            }
+                        }
+                    }
+                }
+#endif
 
                 offset += chunkSize;
             }
@@ -180,6 +259,13 @@ int MasterComm::Initialize(void)
     };
 
     uwbCommTaskHandle = osThreadNew(UwbCommTaskWrapper, this, &uwbTaskAttributes);
+    if (uwbCommTaskHandle == nullptr)
+    {
+        elog_e(TAG, "Failed to create UWB communication task");
+        return -1;
+    }
+
+    elog_i(TAG, "UWB communication task created successfully");
     return 0;
 }
 
