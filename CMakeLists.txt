@@ -339,14 +339,25 @@ add_custom_target(format ALL
     COMMENT "Running clang-format on all files in User/"
 )
 
-# 在编译完成后输出版本信息
+# 在编译完成后输出版本信息并复制版本化固件
 # 使用构建时脚本获取最新版本，而不是配置阶段的缓存变量
 add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+    # 先输出版本信息
     COMMAND ${CMAKE_COMMAND} 
             -DCMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}
             -DPROJECT_NAME=${CMAKE_PROJECT_NAME}
             -DBUILD_TYPE=${CMAKE_BUILD_TYPE}
             -DUWB_CHIP_TYPE=${UWB_CHIP_TYPE}
             -P ${CMAKE_SOURCE_DIR}/cmake/get_build_version.cmake
-    COMMENT "Displaying firmware version information"
+    # 然后复制版本化固件到 bin 文件夹
+    # 注意：使用 $<TARGET_FILE_DIR:...> 生成器表达式在 COMMAND 中需要特殊处理
+    COMMAND ${CMAKE_COMMAND} -E echo "Copying versioned firmware..."
+    COMMAND ${CMAKE_COMMAND}
+            -DCMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+            -DCMAKE_BINARY_DIR=${CMAKE_BINARY_DIR}
+            -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+            -DPROJECT_NAME=${CMAKE_PROJECT_NAME}
+            -DFIRMWARE_OUTPUT_DIR=$<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>
+            -P ${CMAKE_SOURCE_DIR}/cmake/copy_versioned_firmware.cmake
+    COMMENT "Displaying firmware version information and copying versioned firmware"
 )
