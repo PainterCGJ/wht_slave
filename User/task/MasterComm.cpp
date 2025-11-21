@@ -55,6 +55,28 @@ void MasterComm::UwbCommTask()
     osDelay(3);
     uwb->set_recv_mode();
     elog_i(TAG, "UWB set to receive mode");
+    // 读取uwb配置
+    uint8_t channel;
+    uwb->get_channel(channel);
+    elog_i(TAG, "UWB channel: %d", channel);
+    uint8_t prf_mode;
+    uwb->get_prf_mode(prf_mode);
+    elog_i(TAG, "UWB prf mode: %d", prf_mode);
+    uint8_t sfd_id;
+    uwb->get_sfd_id(sfd_id);
+    elog_i(TAG, "UWB sfd id: %d", sfd_id);
+    uint8_t preamble_length;
+    uwb->get_preamble_length(preamble_length);
+    elog_i(TAG, "UWB preamble length: %d", preamble_length);
+    uint8_t preamble_index;
+    uwb->get_preamble_index(preamble_index);
+    elog_i(TAG, "UWB preamble index: %d", preamble_index);
+    uint8_t psdu_data_rate;
+    uwb->get_psdu_data_rate(psdu_data_rate);
+    elog_i(TAG, "UWB psdu data rate: %d", psdu_data_rate);
+    uint8_t phr_mode;
+    uwb->get_phr_mode(phr_mode);
+    elog_i(TAG, "UWB phr mode: %d", phr_mode);
 
     // if DIP1 reset, set uwb channel to 6
     // else if DIP2 reset, set uwb channel to 7
