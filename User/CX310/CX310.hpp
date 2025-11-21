@@ -853,17 +853,66 @@ template <class Interface> class CX310
     {
         __init();
         init_success &= set_channel(PARAM_CHANNEL_NUMBER_5);             // channel 5 // channel 5
+        if(!init_success)
+        {
+            elog_e(TAG, "set channel fail");
+            return false;
+        }
         init_success &= set_phr_mode(PARAM_PHYDATARATE_DRHM_HR);         // PHR mode 4
+        if(!init_success)
+        {
+            elog_e(TAG, "set phr mode fail");
+            return false;
+        }
         init_success &= set_sfd_id(2);                                   // SFD ID 3 // SFD ID 3
+        if(!init_success)
+        {
+            elog_e(TAG, "set sfd id fail");
+            return false;
+        }
         init_success &= set_prf_mode(PARAM_PRF_NOMINAL_64_M);            // PRF mode 3
+        if(!init_success)
+        {
+            elog_e(TAG, "set prf mode fail");
+            return false;
+        }
         init_success &= set_preamble_length(PARAM_PREAMBLE_LEN_BPRF_64); // preamble length 1
+        if(!init_success)
+        {
+            elog_e(TAG, "set preamble length fail");
+            return false;
+        }
         init_success &= set_preamble_index(9);                           // preamble index 9
+        if(!init_success)
+        {
+            elog_e(TAG, "set preamble index fail");
+            return false;
+        }
         init_success &= set_psdu_data_rate(PARAM_PSDU_DATA_RATE_7_8);    // PSDU data rate 4
-
+        if(!init_success)
+        {
+            elog_e(TAG, "set psdu data rate fail");
+            return false;
+        }
+        if(!init_success)
+        {
+            elog_e(TAG, "set recv delay fail");
+            return false;
+        }
         init_success &= set_recv_delay(500);
+        if(!init_success)
+        {
+            elog_e(TAG, "set recv delay fail");
+            return false;
+        }
         init_success &= set_tx_power(1); // TX power 5
+        if(!init_success)
+        {
+            elog_e(TAG, "set tx power fail");
+            return false;
+        }
         // init_success &= set_auto_recv_en(1);
-        return 0;
+        return init_success;
     }
 
   private:
