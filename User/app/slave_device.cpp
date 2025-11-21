@@ -838,22 +838,23 @@ void SlaveDevice::AccessoryTask::task()
         }
 
         // 在非TDMA模式下，每10秒检测短ID状态并发送相应消息
-        if (!parent.m_inTdmaMode && (currentTime - parent.m_lastHeartbeatTime) > parent.HEARTBEAT_INTERVAL_US)
-        {
-            // 检查是否已分配短ID
-            if (parent.m_isJoined && parent.m_shortId != 0)
-            {
-                // 有短ID，发送心跳包
-                elog_v(TAG, "Sending periodic heartbeat outside TDMA mode (Short ID: %d)", parent.m_shortId);
-                parent.sendHeartbeat();
-            }
-            else
-            {
-                // 没有短ID，发送公告消息
-                elog_v(TAG, "Sending periodic joinRequest message (no Short ID assigned)");
-                parent.sendJoinRequestMessage();
-            }
-        }
+        // 心跳包功能已关闭
+        // if (!parent.m_inTdmaMode && (currentTime - parent.m_lastHeartbeatTime) > parent.HEARTBEAT_INTERVAL_US)
+        // {
+        //     // 检查是否已分配短ID
+        //     if (parent.m_isJoined && parent.m_shortId != 0)
+        //     {
+        //         // 有短ID，发送心跳包
+        //         elog_v(TAG, "Sending periodic heartbeat outside TDMA mode (Short ID: %d)", parent.m_shortId);
+        //         parent.sendHeartbeat();
+        //     }
+        //     else
+        //     {
+        //         // 没有短ID，发送公告消息
+        //         elog_v(TAG, "Sending periodic joinRequest message (no Short ID assigned)");
+        //         parent.sendJoinRequestMessage();
+        //     }
+        // }
 
         // 自动处理逻辑
         lockController.Update();
