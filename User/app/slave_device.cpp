@@ -316,6 +316,16 @@ void SlaveDevice::sendHeartbeat()
 
 void SlaveDevice::sendJoinRequestMessage()
 {
+    // 生成随机延迟以避免碰撞
+    uint32_t randomDelay = generateRandomDelay();
+    elog_v(TAG, "JoinRequest random delay: %d ms", randomDelay);
+
+    // 应用随机延迟
+    if (randomDelay > 0)
+    {
+        osDelay(randomDelay);
+    }
+
     elog_v(TAG, "Sending joinRequest message");
 
     // 创建公告消息
