@@ -25,6 +25,7 @@
 
 #include "cmsis_os.h"
 #include "elog.h"
+#include "firmware_version.h"
 #include "main.h"
 #include "stm32f4xx_hal_flash_ex.h"
 #include "usart.h"

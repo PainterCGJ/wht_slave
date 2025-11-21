@@ -293,22 +293,25 @@ configure_file(
 # 添加版本头文件目录到包含路径
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${VERSION_HEADER_DIR})
 
-# 添加版本定义（为了向后兼容，保留 add_definitions）
-# 注意：使用引号确保宏值正确传递
-add_definitions(
-  -DFIRMWARE_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
-  -DFIRMWARE_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-  -DFIRMWARE_VERSION_PATCH=${PROJECT_VERSION_PATCH}
-  -DFIRMWARE_VERSION_STRING="${VERSION_STRING}"
-  -DFIRMWARE_BUILD_DATE="${BUILD_DATE}")
+# 版本信息现在通过 firmware_version.h 头文件提供
+# 不再使用 add_definitions()，因为它的值会被 CMake 缓存，无法在构建时更新
+# 所有版本宏定义都在 firmware_version.h 中，由 update_version 目标在每次构建时更新
+# add_definitions(
+#   -DFIRMWARE_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+#   -DFIRMWARE_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+#   -DFIRMWARE_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+#   -DFIRMWARE_VERSION_STRING="${VERSION_STRING}"
+#   -DFIRMWARE_BUILD_DATE="${BUILD_DATE}")
 
 # 创建自定义目标，在每次构建前更新版本信息
+# 使用 BYPRODUCTS 确保 CMake 知道这个文件会被生成，避免缓存问题
 add_custom_target(update_version ALL
     COMMAND ${CMAKE_COMMAND} -DCMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}
                              -DGIT_EXECUTABLE=${GIT_EXECUTABLE}
                              -DVERSION_HEADER_FILE=${VERSION_HEADER_FILE}
                              -P ${CMAKE_SOURCE_DIR}/cmake/update_version.cmake
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    BYPRODUCTS ${VERSION_HEADER_FILE}
     COMMENT "Updating firmware version from git tag"
     VERBATIM
 )

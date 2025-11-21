@@ -9,6 +9,7 @@
 #include "cmsis_os2.h"
 #include "config.h"
 #include "elog.h"
+#include "firmware_version.h"
 #include "hal_uid.hpp"
 #include "hptimer.hpp"
 #include "main.h"
