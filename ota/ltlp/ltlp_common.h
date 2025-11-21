@@ -14,7 +14,7 @@ extern LtlpCallback g_callbacks[LTLP_CALLBACK_NUM];
 extern void* g_callbackParm[LTLP_CALLBACK_NUM];
 
 void ltlpGetReadyToSend(LtlpSendCrtl* sendCtrl, uint8_t frameType, uint8_t msgType, LtlpID_t destID,
-                        const uint8_t* totalPayload, uint32_t totalLen);
+                        LtlpNeedAckTypeDef needAck, const uint8_t* totalPayload, uint32_t totalLen);
 void ltlpSendOneFrame(LtlpSendCrtl* sendCtrl);
 void ltlpHandshake(LtlpSendCrtl* pSendCtrl, LtlpID_t destID);
 void ltlpSetLogCallback(LtlpLogCallback callback);

@@ -28,6 +28,7 @@ struct WaitToSend
 {
     uint8_t msgType;
     LtlpID_t destID;
+    LtlpNeedAckTypeDef needAck;
     uint8_t *payload;
     uint32_t payloadLen;
     uint8_t waitFlag; // 0: 未等待 1: 等待中
@@ -50,7 +51,8 @@ void ltlpKernelReset()
     memset(&g_waitToSend, 0, sizeof(g_waitToSend));
     ltlpResetParser();
 }
-bool ltlpKernelStartToSend(uint8_t msgType, LtlpID_t destID, const uint8_t *payload, uint32_t payloadLen)
+bool ltlpKernelStartToSend(uint8_t msgType, LtlpID_t destID, LtlpNeedAckTypeDef needAck, const uint8_t *payload,
+                           uint32_t payloadLen)
 {
     if (g_kernelState != KERNEL_IDLE)
     {
@@ -58,6 +60,7 @@ bool ltlpKernelStartToSend(uint8_t msgType, LtlpID_t destID, const uint8_t *payl
         {
             g_waitToSend.msgType = msgType;
             g_waitToSend.destID = destID;
+            g_waitToSend.needAck = needAck;
             g_waitToSend.payload = (uint8_t *)payload;
             g_waitToSend.payloadLen = payloadLen;
             g_waitToSend.waitFlag = 1;
@@ -66,7 +69,7 @@ bool ltlpKernelStartToSend(uint8_t msgType, LtlpID_t destID, const uint8_t *payl
         }
         return false;
     }
-    ltlpStartToSend(msgType, destID, payload, payloadLen);
+    ltlpStartToSend(msgType, destID, needAck, payload, payloadLen);
     g_kernelState = KERNEL_SENDING;
     return true;
 }
@@ -135,7 +138,8 @@ void ltlpKernelParse(uint8_t *pData, uint32_t len)
                                                                        sizeof(g_parserCtrl.frame.header.headerBytes)))
                     {
                         // 帧头接收完成，且CRC校验通过
-                        if (g_parserCtrl.frame.header.info.destID != g_setting.localID)
+                        if (g_parserCtrl.frame.header.info.destID != g_setting.localID &&
+                            g_parserCtrl.frame.header.info.destID != LTLP_BROADCAST_ID)
                         {
                             // 目标ID不匹配，丢弃该帧
                             ltlpResetParser();
@@ -223,7 +227,7 @@ void ltlpKernelRun()
     case KERNEL_IDLE: {
         if (g_waitToSend.waitFlag == 1)
         {
-            ltlpKernelStartToSend(g_waitToSend.msgType, g_waitToSend.destID, g_waitToSend.payload,
+            ltlpKernelStartToSend(g_waitToSend.msgType, g_waitToSend.destID, g_waitToSend.needAck, g_waitToSend.payload,
                                   g_waitToSend.payloadLen);
             g_waitToSend.waitFlag = 0;
             ltlpLogger("ltlp kernel run, start to send");

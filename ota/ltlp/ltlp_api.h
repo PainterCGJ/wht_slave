@@ -7,7 +7,7 @@ extern "C" {
 #include "ltlp_def.h"
 #include <stdbool.h>
 void ltlpInit(LtlpBasicSettingDef* setting);
-bool ltlpSendData(uint8_t msgType, LtlpID_t destID, uint8_t* pData, uint32_t len);
+bool ltlpSendData(uint8_t msgType, LtlpID_t destID, LtlpNeedAckTypeDef needAck, uint8_t* pData, uint32_t len);
 void ltlpSetCallback(LtlpCallbackTypeDef type, LtlpCallback callback, void* usrParm);
 void ltlpParse(uint8_t* pData, uint32_t len);
 void ltlpSetLogger(LtlpLogCallback callback);

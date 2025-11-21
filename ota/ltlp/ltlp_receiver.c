@@ -41,7 +41,9 @@ void ltlpReceiverHandleFrame(LtlpFrame* pFrame) {
                 if (g_callbacks[LTLP_CLLBACK_ON_RECV_ONE_FRAME] != NULL) {
                     g_callbacks[LTLP_CLLBACK_ON_RECV_ONE_FRAME](pFrame, g_callbackParm[LTLP_CLLBACK_ON_RECV_ONE_FRAME]);
                 }
-                ltlpSendAck(&ackCtrl, pFrame->header.info.srcID);
+                if (pFrame->header.info.needAck == LTLP_NEED_ACK_YES) {
+                    ltlpSendAck(&ackCtrl, pFrame->header.info.srcID);
+                }
                 if (pFrame->header.info.totalFrames == g_recvCtrl.recvFrameCnt) {
                     // 接收完成
                     ltlpLogger("ltlp receiver recv all data done");

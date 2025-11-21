@@ -47,7 +47,7 @@ static uint16_t caculateFrameNum(uint32_t totalLen) {
 }
 uint16_t ltlpCrc(uint8_t* pData, uint32_t len) { return crc16_modbus(pData, len); }
 void ltlpGetReadyToSend(LtlpSendCrtl* pSendCtrl, uint8_t frameType, uint8_t msgType, LtlpID_t destID,
-                        const uint8_t* pTotalPayload, uint32_t totalLen) {
+                        LtlpNeedAckTypeDef needAck, const uint8_t* pTotalPayload, uint32_t totalLen) {
     pSendCtrl->frame.header.sof = LTLP_SOF;
     pSendCtrl->frame.header.info.srcID = g_setting.localID;
     pSendCtrl->frame.header.info.destID = destID;
@@ -55,6 +55,7 @@ void ltlpGetReadyToSend(LtlpSendCrtl* pSendCtrl, uint8_t frameType, uint8_t msgT
     pSendCtrl->frame.header.info.msgType = msgType;
     pSendCtrl->frame.header.info.totalFrames = caculateFrameNum(totalLen);
     pSendCtrl->frame.header.info.seqNum = 0;
+    pSendCtrl->frame.header.info.needAck = needAck;
     pSendCtrl->pTotalPayload = (uint8_t*)pTotalPayload;
     pSendCtrl->totalLen = totalLen;
     pSendCtrl->frame.pFramePayload = pSendCtrl->pTotalPayload;
@@ -98,17 +99,17 @@ void ltlpSendOneFrame(LtlpSendCrtl* pSendCtrl) {
 }
 
 void ltlpHandshake(LtlpSendCrtl* pSendCtrl, LtlpID_t destID) {
-    ltlpGetReadyToSend(pSendCtrl, LTLP_SYS_FRAME, LTLP_SYS_FRAME_HANDSHAKE, destID, NULL, 0);
+    ltlpGetReadyToSend(pSendCtrl, LTLP_SYS_FRAME, LTLP_SYS_FRAME_HANDSHAKE, destID, LTLP_NEED_ACK_YES, NULL, 0);
     ltlpSendOneFrame(pSendCtrl);
 }
 
 void ltlpSendNack(LtlpSendCrtl* pSendCtrl, LtlpID_t destID) {
-    ltlpGetReadyToSend(pSendCtrl, LTLP_SYS_FRAME, LTLP_SYS_FRAME_NACK, destID, NULL, 0);
+    ltlpGetReadyToSend(pSendCtrl, LTLP_SYS_FRAME, LTLP_SYS_FRAME_NACK, destID, LTLP_NEED_ACK_NO, NULL, 0);
     ltlpSendOneFrame(pSendCtrl);
 }
 
 void ltlpSendAck(LtlpSendCrtl* pSendCtrl, LtlpID_t destID) {
-    ltlpGetReadyToSend(pSendCtrl, LTLP_SYS_FRAME, LTLP_SYS_FRAME_ACK, destID, NULL, 0);
+    ltlpGetReadyToSend(pSendCtrl, LTLP_SYS_FRAME, LTLP_SYS_FRAME_ACK, destID, LTLP_NEED_ACK_NO, NULL, 0);
     ltlpSendOneFrame(pSendCtrl);
 }
 

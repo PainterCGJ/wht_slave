@@ -1,12 +1,16 @@
 #ifndef __LTLP_FRAME_DEF_H__
 #define __LTLP_FRAME_DEF_H__
 
+/* 用户可配置参数 */
 #define LTLP_MTU_SIZE 1000    // 最大传输单元大小
 #define LTLP_MAX_PAYLOAD_LEN \
     (LTLP_MTU_SIZE - sizeof(LtlpHeaderDef) - 2)    // 最大负载长度
 #define LTLP_SOF             0xAA55                // 帧头
 #define LTLP_TIMEOUT_MS      3000                  // 超时时间1秒
 #define LTLP_MAX_RETRY_TIMES 3                     // 最大重试次数
+#define LTLP_BROADCAST_ID 0xFFFFFFFF              // 广播ID
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif    // __cplusplus
@@ -21,6 +25,11 @@ typedef enum {
 
     LTLP_FRAME_TYPE_NUM,
 } LtlpFrameTypeDef;
+
+typedef enum{
+    LTLP_NEED_ACK_NO = 0,    // 不需要ACK
+    LTLP_NEED_ACK_YES,       // 需要ACK
+}LtlpNeedAckTypeDef;
 
 typedef enum {
     LTLP_SYS_FRAME_ACK = 0x00,
@@ -61,6 +70,7 @@ typedef struct {
     uint8_t frameType;       // 帧类型
     uint8_t msgType;         // 消息类型，用户自定义
     uint16_t totalFrames;    // 总帧数;
+    uint8_t needAck;         // 是否需要ACK;
     uint16_t seqNum;         // 帧序号;
     uint16_t payloadLen;     // 有效数据长度;
 } LtlpFrameInfoDef;
