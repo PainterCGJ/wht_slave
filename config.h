@@ -39,7 +39,7 @@ extern "C" {
  * 默认值：7 (UART7/RS485)
  */
 #ifndef PRINTF_OUTPUT_UART
-#define PRINTF_OUTPUT_UART    4
+#define PRINTF_OUTPUT_UART    1
 #endif
 
 /**
@@ -53,7 +53,7 @@ extern "C" {
  * 默认值：7 (UART7/RS485)
  */
 #ifndef ELOG_OUTPUT_UART
-#define ELOG_OUTPUT_UART      4
+#define ELOG_OUTPUT_UART      1
 #endif
 
 /* FreeRTOS Configuration ----------------------------------------------------*/
@@ -65,6 +65,21 @@ extern "C" {
  */
 #ifndef FREERTOS_HEAP_SIZE
 #define FREERTOS_HEAP_SIZE                    ((size_t)500 * 1024)
+#endif
+
+/* Task Enable/Disable Switches ----------------------------------------------*/
+
+/**
+ * @brief OTA任务启用开关
+ * 
+ * 可选值：
+ *   0 - 禁用OTA任务，不创建OTA任务
+ *   1 - 启用OTA任务，创建OTA任务
+ * 
+ * 默认值：1 (启用)
+ */
+#ifndef ENABLE_OTA_TASK
+#define ENABLE_OTA_TASK                       0
 #endif
 
 /* Task Stack Size Definitions -----------------------------------------------*/

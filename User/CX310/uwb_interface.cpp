@@ -6,14 +6,17 @@
 
 // 全局指针定义
 CX310_SlaveSpiAdapter *g_uwbAdapter = nullptr;
+#define CX310_USE_IRQ 0
 
 // C风格包装函数，用于在C中断中调用C++成员函数
 extern "C" void uwb_int_handler_wrapper(void)
 {
+#if CX310_USE_IRQ == 1
     if (g_uwbAdapter != nullptr)
     {
         g_uwbAdapter->int_pin_irq_handler();
     }
+#endif
 }
 
 // 构造函数
@@ -70,7 +73,6 @@ void CX310_SlaveSpiAdapter::turn_of_reset_signal()
 bool CX310_SlaveSpiAdapter::send(std::vector<uint8_t> &tx_data)
 {
     // 进入临界区，防止SPI通信被其他任务或中断打断
-    taskENTER_CRITICAL();
 
     nss_low();
 
@@ -82,39 +84,55 @@ bool CX310_SlaveSpiAdapter::send(std::vector<uint8_t> &tx_data)
     nss_high();
 
     // 退出临界区
-    taskEXIT_CRITICAL();
 
     return ret;
 }
 
 bool CX310_SlaveSpiAdapter::get_recv_data(std::queue<uint8_t> &rx_data)
 {
-    if (rx_semaphore.take(0))
+#if CX310_USE_IRQ == 1
+    if (!rx_semaphore.take(0))
     {
-        nss_low();
-        HAL_StatusTypeDef status;
-        status = HAL_SPI_TransmitReceive(&hspi4, dummy_data, rx_buffer, 4, HAL_MAX_DELAY);
-        if (status != HAL_OK)
-        {
-            nss_high();
-            return false;
-        }
-        recv_len = (((uint16_t)rx_buffer[2]) << 8) | rx_buffer[3];
-        // elog_i("IUWB", "recv_len: %d", recv_len);
-        status = HAL_SPI_TransmitReceive(&hspi4, dummy_data, rx_buffer + 4, recv_len, HAL_MAX_DELAY);
-        if (status != HAL_OK)
-        {
-            nss_high();
-            return false;
-        }
-        nss_high();
-        for (int i = 0; i < recv_len + 4; i++)
-        {
-            rx_data.push(rx_buffer[i]);
-        }
-        memset(rx_buffer, 0, sizeof(rx_buffer));
-        return true;
+        return false;
     }
+#else
+    // IRQ引脚为高电平，返回false
+    if (HAL_GPIO_ReadPin(UWB_INT_GPIO_Port, UWB_INT_Pin) == GPIO_PIN_SET)
+    {
+        return false;
+    }
+#endif
+    nss_low();
+// 执行50次NOP指令
+#if CX310_USE_IRQ == 0
+    for (int i = 0; i < 50; i++)
+    {
+        __NOP();
+    }
+#endif
+    HAL_StatusTypeDef status;
+    status = HAL_SPI_TransmitReceive(&hspi4, dummy_data, rx_buffer, 4, HAL_MAX_DELAY);
+    if (status != HAL_OK)
+    {
+        nss_high();
+        return false;
+    }
+    recv_len = (((uint16_t)rx_buffer[2]) << 8) | rx_buffer[3];
+    // elog_i("IUWB", "recv_len: %d", recv_len);
+    status = HAL_SPI_TransmitReceive(&hspi4, dummy_data, rx_buffer + 4, recv_len, HAL_MAX_DELAY);
+    if (status != HAL_OK)
+    {
+        nss_high();
+        return false;
+    }
+    nss_high();
+    for (int i = 0; i < recv_len + 4; i++)
+    {
+        rx_data.push(rx_buffer[i]);
+    }
+    memset(rx_buffer, 0, sizeof(rx_buffer));
+    return true;
+
     return false;
 }
 
