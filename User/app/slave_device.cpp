@@ -271,98 +271,100 @@ void SlaveDevice::sendPendingResponses()
     }
 }
 
-void SlaveDevice::sendHeartbeat()
-{
-    // 生成随机延迟以避免碰撞
-    uint32_t randomDelay = generateRandomDelay();
-    elog_v(TAG, "Heartbeat random delay: %d ms", randomDelay);
+// 心跳包功能已关闭
+// void SlaveDevice::sendHeartbeat()
+// {
+//     // 生成随机延迟以避免碰撞
+//     uint32_t randomDelay = generateRandomDelay();
+//     elog_v(TAG, "Heartbeat random delay: %d ms", randomDelay);
 
-    // 应用随机延迟
-    if (randomDelay > 0)
-    {
-        osDelay(randomDelay);
-    }
+//     // 应用随机延迟
+//     if (randomDelay > 0)
+//     {
+//         osDelay(randomDelay);
+//     }
 
-    // 获取当前电池电量百分比
-    uint8_t batteryPercentage = getCurrentBatteryPercentage();
+//     // 获取当前电池电量百分比
+//     uint8_t batteryPercentage = getCurrentBatteryPercentage();
 
-    elog_v(TAG, "Sending heartbeat message with battery level: %d%%", batteryPercentage);
+//     elog_v(TAG, "Sending heartbeat message with battery level: %d%%", batteryPercentage);
 
-    // 创建心跳消息
-    auto heartbeatMsg = std::make_unique<WhtsProtocol::Slave2Master::HeartbeatMessage>();
-    heartbeatMsg->batteryLevel = batteryPercentage;
+//     // 创建心跳消息
+//     auto heartbeatMsg = std::make_unique<WhtsProtocol::Slave2Master::HeartbeatMessage>();
+//     heartbeatMsg->batteryLevel = batteryPercentage;
 
-    // 打包消息
-    std::vector<std::vector<uint8_t>> messageData = m_processor.packSlave2MasterMessage(m_deviceId, *heartbeatMsg);
+//     // 打包消息
+//     std::vector<std::vector<uint8_t>> messageData = m_processor.packSlave2MasterMessage(m_deviceId, *heartbeatMsg);
 
-    // 发送所有片段
-    bool success = true;
-    for (auto &fragment : messageData)
-    {
-        if (send(fragment) != 0)
-        {
-            elog_e(TAG, "Failed to send heartbeat fragment");
-            success = false;
-            break;
-        }
-    }
+//     // 发送所有片段
+//     bool success = true;
+//     for (auto &fragment : messageData)
+//     {
+//         if (send(fragment) != 0)
+//         {
+//             elog_e(TAG, "Failed to send heartbeat fragment");
+//             success = false;
+//             break;
+//         }
+//     }
 
-    if (success)
-    {
-        elog_v(TAG, "Heartbeat sent successfully with battery level: %d%%", batteryPercentage);
-        m_lastHeartbeatTime = HptimerGetUs();
-    }
-    else
-    {
-        elog_e(TAG, "Failed to send heartbeat");
-    }
-}
+//     if (success)
+//     {
+//         elog_v(TAG, "Heartbeat sent successfully with battery level: %d%%", batteryPercentage);
+//         m_lastHeartbeatTime = HptimerGetUs();
+//     }
+//     else
+//     {
+//         elog_e(TAG, "Failed to send heartbeat");
+//     }
+// }
 
-void SlaveDevice::sendJoinRequestMessage()
-{
-    // 生成随机延迟以避免碰撞
-    uint32_t randomDelay = generateRandomDelay();
-    elog_v(TAG, "JoinRequest random delay: %d ms", randomDelay);
+// 入网宣告功能已关闭
+// void SlaveDevice::sendJoinRequestMessage()
+// {
+//     // 生成随机延迟以避免碰撞
+//     uint32_t randomDelay = generateRandomDelay();
+//     elog_v(TAG, "JoinRequest random delay: %d ms", randomDelay);
 
-    // 应用随机延迟
-    if (randomDelay > 0)
-    {
-        osDelay(randomDelay);
-    }
+//     // 应用随机延迟
+//     if (randomDelay > 0)
+//     {
+//         osDelay(randomDelay);
+//     }
 
-    elog_v(TAG, "Sending joinRequest message");
+//     elog_v(TAG, "Sending joinRequest message");
 
-    // 创建公告消息
-    auto joinRequestMsg = std::make_unique<WhtsProtocol::Slave2Master::JoinRequestMessage>();
-    joinRequestMsg->deviceId = m_deviceId;
-    joinRequestMsg->versionMajor = FIRMWARE_VERSION_MAJOR;
-    joinRequestMsg->versionMinor = FIRMWARE_VERSION_MINOR;
-    joinRequestMsg->versionPatch = FIRMWARE_VERSION_PATCH;
+//     // 创建公告消息
+//     auto joinRequestMsg = std::make_unique<WhtsProtocol::Slave2Master::JoinRequestMessage>();
+//     joinRequestMsg->deviceId = m_deviceId;
+//     joinRequestMsg->versionMajor = FIRMWARE_VERSION_MAJOR;
+//     joinRequestMsg->versionMinor = FIRMWARE_VERSION_MINOR;
+//     joinRequestMsg->versionPatch = FIRMWARE_VERSION_PATCH;
 
-    // 打包消息
-    std::vector<std::vector<uint8_t>> messageData = m_processor.packSlave2MasterMessage(m_deviceId, *joinRequestMsg);
+//     // 打包消息
+//     std::vector<std::vector<uint8_t>> messageData = m_processor.packSlave2MasterMessage(m_deviceId, *joinRequestMsg);
 
-    // 发送所有片段
-    bool success = true;
-    for (auto &fragment : messageData)
-    {
-        if (send(fragment) != 0)
-        {
-            elog_e(TAG, "Failed to send joinRequest message fragment");
-            success = false;
-            break;
-        }
-    }
+//     // 发送所有片段
+//     bool success = true;
+//     for (auto &fragment : messageData)
+//     {
+//         if (send(fragment) != 0)
+//         {
+//             elog_e(TAG, "Failed to send joinRequest message fragment");
+//             success = false;
+//             break;
+//         }
+//     }
 
-    if (success)
-    {
-        elog_v(TAG, "JoinRequest message sent successfully");
-    }
-    else
-    {
-        elog_e(TAG, "Failed to send joinRequest message");
-    }
-}
+//     if (success)
+//     {
+//         elog_v(TAG, "JoinRequest message sent successfully");
+//     }
+//     else
+//     {
+//         elog_e(TAG, "Failed to send joinRequest message");
+//     }
+// }
 
 void SlaveDevice::OnSlotChanged(const SlotInfo &slotInfo)
 {
@@ -820,8 +822,9 @@ void SlaveDevice::AccessoryTask::task()
 {
     elog_d(TAG, "Accessory hardware initialized");
 
-    // send joinRequest when first power on
-    parent.sendJoinRequestMessage();
+    // 入网宣告功能已关闭
+    // // send joinRequest when first power on
+    // parent.sendJoinRequestMessage();
 
     for (;;)
     {
@@ -837,23 +840,24 @@ void SlaveDevice::AccessoryTask::task()
             parent.m_lastHeartbeatTime = currentTime; // 重置心跳计时
         }
 
-        // 在非TDMA模式下，每10秒检测短ID状态并发送相应消息
-        if (!parent.m_inTdmaMode && (currentTime - parent.m_lastHeartbeatTime) > parent.HEARTBEAT_INTERVAL_US)
-        {
-            // 检查是否已分配短ID
-            if (parent.m_isJoined && parent.m_shortId != 0)
-            {
-                // 有短ID，发送心跳包
-                elog_v(TAG, "Sending periodic heartbeat outside TDMA mode (Short ID: %d)", parent.m_shortId);
-                parent.sendHeartbeat();
-            }
-            else
-            {
-                // 没有短ID，发送公告消息
-                elog_v(TAG, "Sending periodic joinRequest message (no Short ID assigned)");
-                parent.sendJoinRequestMessage();
-            }
-        }
+        // 心跳包和入网宣告功能已关闭
+        // // 在非TDMA模式下，每10秒检测短ID状态并发送相应消息
+        // if (!parent.m_inTdmaMode && (currentTime - parent.m_lastHeartbeatTime) > parent.HEARTBEAT_INTERVAL_US)
+        // {
+        //     // 检查是否已分配短ID
+        //     if (parent.m_isJoined && parent.m_shortId != 0)
+        //     {
+        //         // 有短ID，发送心跳包
+        //         elog_v(TAG, "Sending periodic heartbeat outside TDMA mode (Short ID: %d)", parent.m_shortId);
+        //         parent.sendHeartbeat();
+        //     }
+        //     else
+        //     {
+        //         // 没有短ID，发送公告消息
+        //         elog_v(TAG, "Sending periodic joinRequest message (no Short ID assigned)");
+        //         parent.sendJoinRequestMessage();
+        //     }
+        // }
 
         // 自动处理逻辑
         lockController.Update();

@@ -118,15 +118,17 @@ class SlaveDevice
      */
     void sendPendingResponses();
 
-    /**
-     * 发送心跳消息
-     */
-    void sendHeartbeat();
+    // 心跳包功能已关闭
+    // /**
+    //  * 发送心跳消息
+    //  */
+    // void sendHeartbeat();
 
-    /**
-     * 发送公告消息
-     */
-    void sendJoinRequestMessage();
+    // 入网宣告功能已关闭
+    // /**
+    //  * 发送公告消息
+    //  */
+    // void sendJoinRequestMessage();
 
     /**
      * 计算电池电量百分比
