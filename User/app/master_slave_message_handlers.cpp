@@ -156,6 +156,20 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
         elog_v("SyncMessageHandler",
                "Slot manager configured (single cycle) - StartSlot: %d, TotalSlots: %d, Interval: %d ms", startSlot,
                totalSlotCount, slotIntervalMs);
+
+        // 打印详细的时隙信息
+        // elog_d("SyncMessageHandler",
+        //        "=== Slot Configuration Details ===");
+        elog_d("SyncMessageHandler", "StartSlot: %d (0x%04X)", startSlot, startSlot);
+        // elog_d("SyncMessageHandler",
+        //        "DeviceSlotCount: %d", deviceSlotCount);
+        // elog_d("SyncMessageHandler",
+        //        "TotalSlotCount: %d", totalSlotCount);
+        elog_d("SyncMessageHandler", "SlotInterval: %d ms", slotIntervalMs);
+        // elog_d("SyncMessageHandler",
+        //        "SlotRange: [%d, %d)", startSlot, startSlot + deviceSlotCount);
+        // elog_d("SyncMessageHandler",11
+        //        "================================");
     }
 
     // 8. 检查是否立即启动或延迟启动
