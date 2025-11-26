@@ -40,6 +40,8 @@ SlaveDevice::SlaveDevice()
       m_isScheduledToStart(false),             // 初始未计划启动
       m_hasDataToSend(false),                  // 初始无数据待发送
       m_isFirstCollection(true),               // 初始为第一次采集
+      m_currentFragmentIndex(0),               // 初始分片索引为0
+      m_isFragmentSendingInProgress(false),    // 初始未进行分片发送
       m_hasPendingSlaveControlResponse(false), // 初始无待回复的SlaveControl消息
       m_hasPendingResetResponse(false),        // 初始无待回复的Reset消息
       m_pendingSlaveControlResponse(nullptr),  // 初始化待回复的SlaveControl响应为空
@@ -385,8 +387,41 @@ void SlaveDevice::OnSlotChanged(const SlotInfo &slotInfo)
         return;
     }
 
+    // 检查是否正在进行分片发送，如果是，在本设备的每个激活时隙发送对应的分片
+    // 第一个激活时隙（activePin == 0）发送第一包，第二个激活时隙（activePin == 1）发送第二包，以此类推
+    if (m_isFragmentSendingInProgress && slotInfo.m_slotType == SlotType::ACTIVE)
+    {
+        // 当前激活时隙对应的分片索引（activePin 从0开始，对应第一个分片索引0）
+        size_t targetFragmentIndex = static_cast<size_t>(slotInfo.m_activePin);
+
+        // 检查目标分片索引是否有效
+        if (targetFragmentIndex < m_pendingFragments.size())
+        {
+            // 确保当前分片索引指向目标分片（每个时隙发送对应的分片）
+            if (m_currentFragmentIndex != targetFragmentIndex)
+            {
+                elog_v(TAG, "Adjusting fragment index from %d to %d for activePin %d", m_currentFragmentIndex,
+                       targetFragmentIndex, slotInfo.m_activePin);
+                m_currentFragmentIndex = targetFragmentIndex;
+            }
+
+            // 发送当前时隙对应的分片
+            if (m_dataCollectionTask)
+            {
+                elog_d(TAG, "Sending fragment %d/%d in active slot %d (pin %d)", m_currentFragmentIndex + 1,
+                       m_pendingFragments.size(), slotInfo.m_currentSlot, slotInfo.m_activePin);
+                m_dataCollectionTask->sendDataToBackend();
+            }
+        }
+        else
+        {
+            // 如果分片数量少于激活时隙数量，在多余的时隙中不发送
+            elog_e(TAG, "No fragment for activePin %d (total fragments %d)", slotInfo.m_activePin,
+                   m_pendingFragments.size());
+        }
+    }
     // 检查是否是本设备的第一个激活时隙
-    if (slotInfo.m_slotType == SlotType::ACTIVE && slotInfo.m_activePin == 0)
+    else if (slotInfo.m_slotType == SlotType::ACTIVE && slotInfo.m_activePin == 0)
     { // 第一个激活引脚
 
         // 优先发送待回复的响应消息（避免与数据传输冲撞）
@@ -404,9 +439,10 @@ void SlaveDevice::OnSlotChanged(const SlotInfo &slotInfo)
         // }
 
         // 发送数据到后端（每个周期都发送当前采集的数据）
+        // 如果数据需要分包，会在第一个时隙开始分片发送流程
         if (m_dataCollectionTask)
         {
-            elog_v(TAG, "Sending current collection data to backend");
+            elog_v(TAG, "Sending current collection data to backend in first active slot");
             m_dataCollectionTask->sendDataToBackend();
         }
     }
@@ -696,7 +732,57 @@ void SlaveDevice::DataCollectionTask::sendDataToBackend() const
         return;
     }
 
-    // 检查是否有缓存的数据可发送
+    // 如果正在进行分片发送，发送下一个分片
+    if (parent.m_isFragmentSendingInProgress)
+    {
+        // 检查是否还有待发送的分片
+        if (parent.m_currentFragmentIndex < parent.m_pendingFragments.size())
+        {
+            // 发送当前分片
+            const auto &fragment = parent.m_pendingFragments[parent.m_currentFragmentIndex];
+            if (parent.send(fragment) == 0)
+            {
+                elog_v(TAG, "Sent fragment %d/%d to backend (size: %d bytes)", parent.m_currentFragmentIndex + 1,
+                       parent.m_pendingFragments.size(), fragment.size());
+
+                parent.m_currentFragmentIndex++;
+
+                // 检查是否所有分片都已发送完成
+                if (parent.m_currentFragmentIndex >= parent.m_pendingFragments.size())
+                {
+                    elog_v(TAG, "All fragments (%d) successfully sent to backend", parent.m_pendingFragments.size());
+
+                    // 清空分片发送状态
+                    parent.m_pendingFragments.clear();
+                    parent.m_currentFragmentIndex = 0;
+                    parent.m_isFragmentSendingInProgress = false;
+
+                    // 清空缓存数据和标志
+                    parent.lastCollectionData.clear();
+                    parent.m_hasDataToSend = false;
+                }
+            }
+            else
+            {
+                elog_e(TAG, "Failed to send fragment %d/%d to backend", parent.m_currentFragmentIndex + 1,
+                       parent.m_pendingFragments.size());
+                // 发送失败，保持状态，下次时隙重试
+            }
+        }
+        else
+        {
+            // 所有分片已发送完成，但状态未正确更新，重置状态
+            elog_w(TAG, "Fragment sending completed but state not updated, resetting");
+            parent.m_pendingFragments.clear();
+            parent.m_currentFragmentIndex = 0;
+            parent.m_isFragmentSendingInProgress = false;
+            parent.lastCollectionData.clear();
+            parent.m_hasDataToSend = false;
+        }
+        return;
+    }
+
+    // 如果还没有开始分片发送，检查是否有缓存的数据可发送
     if (!parent.m_hasDataToSend || parent.lastCollectionData.empty())
     {
         elog_w(TAG, "No cached data available to send to backend");
@@ -713,34 +799,46 @@ void SlaveDevice::DataCollectionTask::sendDataToBackend() const
 
     if (dataMsg->conductionLength > 0)
     {
-        elog_v(TAG, "Sending %d bytes of cached conduction data to backend", dataMsg->conductionLength);
+        elog_v(TAG, "Preparing to send %d bytes of cached conduction data to backend", dataMsg->conductionLength);
 
-        // 使用协议处理器打包消息为Slave2Backend格式
+        // 使用协议处理器打包消息为Slave2Backend格式（会自动分片）
         const auto packedData =
             parent.m_processor.packSlave2BackendMessage(parent.m_deviceId, parent.m_deviceStatus, *dataMsg);
 
-        // 发送所有数据包片段
-        bool success = true;
-        for (size_t i = 0; i < packedData.size(); ++i)
-        {
-            if (parent.send(packedData[i]) != 0)
-            {
-                elog_e(TAG, "Failed to send data fragment %d/%d to backend", i + 1, packedData.size());
-                success = false;
-                break;
-            }
-        }
+        // 保存所有分片，准备跨时隙发送
+        parent.m_pendingFragments = packedData;
+        parent.m_currentFragmentIndex = 0;
+        parent.m_isFragmentSendingInProgress = true;
 
-        if (success)
+        elog_v(TAG, "Data split into %d fragments, will send one fragment per slot", packedData.size());
+
+        // 发送第一个分片
+        if (!parent.m_pendingFragments.empty())
         {
-            elog_v(TAG, "Cached data successfully sent to backend (%d fragments)", packedData.size());
-            // 发送成功后清空缓存数据和标志
-            parent.lastCollectionData.clear();
-            parent.m_hasDataToSend = false;
-        }
-        else
-        {
-            elog_e(TAG, "Failed to send complete cached data to backend");
+            const auto &firstFragment = parent.m_pendingFragments[0];
+            if (parent.send(firstFragment) == 0)
+            {
+                elog_v(TAG, "Sent first fragment 1/%d to backend (size: %d bytes)", parent.m_pendingFragments.size(),
+                       firstFragment.size());
+
+                parent.m_currentFragmentIndex = 1; // 下一个要发送的分片索引
+
+                // 如果只有一个分片，立即完成
+                if (parent.m_currentFragmentIndex >= parent.m_pendingFragments.size())
+                {
+                    elog_v(TAG, "Single fragment sent, transmission complete");
+                    parent.m_pendingFragments.clear();
+                    parent.m_currentFragmentIndex = 0;
+                    parent.m_isFragmentSendingInProgress = false;
+                    parent.lastCollectionData.clear();
+                    parent.m_hasDataToSend = false;
+                }
+            }
+            else
+            {
+                elog_e(TAG, "Failed to send first fragment, will retry in next slot");
+                // 保持状态，下次时隙重试
+            }
         }
     }
     else

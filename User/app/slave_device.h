@@ -76,6 +76,11 @@ class SlaveDevice
     bool m_hasDataToSend;                    // 是否有数据待发送
     bool m_isFirstCollection;                // 是否是第一次采集
 
+    // 分片发送相关（用于跨时隙分包发送）
+    std::vector<std::vector<uint8_t>> m_pendingFragments; // 待发送的分片数据
+    size_t m_currentFragmentIndex;                        // 当前发送到第几个分片（0-based）
+    bool m_isFragmentSendingInProgress;                   // 是否正在进行分片发送
+
     // 待回复消息管理（避免数据冲撞）
     bool m_hasPendingSlaveControlResponse;                                // 是否有待回复的SlaveControl消息
     bool m_hasPendingResetResponse;                                       // 是否有待回复的Reset消息
