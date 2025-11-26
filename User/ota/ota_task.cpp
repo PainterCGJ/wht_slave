@@ -25,8 +25,9 @@ void OtaTask::task()
     m_upgradeFlag = 0;
     LtlpBasicSettingDef ltlpSetting = {0};
     ltlpSetting.sendPortFunc = ltlpSendFunc;
+    ltlpSetting.sendPortUsrParm = this;
     ltlpSetting.nowTimeFunc = ltlpNowTimeFunc;
-    ltlpSetting.nowTimeUsrParm = NULL;
+    ltlpSetting.nowTimeUsrParm = this;
     ltlpSetting.localID = get_device_id();
     ltlpSetting.pAssambleBuffer = NULL;
     ltlpSetting.assambleBufferSize = 0;
@@ -114,6 +115,7 @@ void OtaTask::processOta()
         if (m_ltlpReceiverBufferLen > 0)
         {
             elog_d(TAG, "Received %d bytes from uwb, parsing", m_ltlpReceiverBufferLen);
+            elog_d(TAG, "m_ltlpPort: %d", m_ltlpPort);
             ltlpParse(m_ltlpReceiverBuffer, m_ltlpReceiverBufferLen);
             m_ltlpReceiverBufferLen = 0;
         }
@@ -144,6 +146,7 @@ void OtaTask::processOta()
     if (m_ltlpReceiverBufferLen > 0)
     {
         elog_d(TAG, "Received %d bytes, parsing", m_ltlpReceiverBufferLen);
+        elog_d(TAG, "m_ltlpPort: %d", m_ltlpPort);
         ltlpParse(m_ltlpReceiverBuffer, m_ltlpReceiverBufferLen);
         m_ltlpReceiverBufferLen = 0;
     }
@@ -159,12 +162,6 @@ void OtaTask::ltlpSendFunc(uint8_t *pData, uint32_t len, void *usrParm)
         osMessageQueueId_t ltlp_to_uwb_queue = uwb_ltlp_get_ltlp_to_uwb_queue();
         if (ltlp_to_uwb_queue != NULL)
         {
-            // 如果是第一次发送数据，清除之前的数据就绪标志
-            if (!s_ltlp_sending_to_uwb)
-            {
-                uwb_ltlp_clear_ltlp_data_ready();
-            }
-
             // 将数据逐字节入队到LTLP->UWB队列
             for (uint32_t i = 0; i < len; i++)
             {
@@ -176,7 +173,8 @@ void OtaTask::ltlpSendFunc(uint8_t *pData, uint32_t len, void *usrParm)
                     break;
                 }
             }
-            s_ltlp_sending_to_uwb = true; // 标记正在向UWB发送数据
+            uwb_ltlp_set_ltlp_data_ready();
+            elog_d(TAG, "Sent %d bytes to UWB", len);
         }
     }
     else if (pThis->m_ltlpPort == DB9_PORT)
@@ -187,9 +185,13 @@ void OtaTask::ltlpSendFunc(uint8_t *pData, uint32_t len, void *usrParm)
 
         // 通过RS485发送数据
         HAL_UART_Transmit(&RS485_UART, pData, len, HAL_MAX_DELAY);
-
+        elog_d(TAG, "Sent %d bytes to RS485", len);
         // 切换回RS485接收模式
         RS485_RX_EN();
+    }
+    else
+    {
+        elog_w(TAG, "Invalid LTLP port");
     }
 }
 
@@ -228,12 +230,4 @@ static void onLtlpSendAllDataDone(LtlpFrame *pFrame, void *usrParm)
 {
     (void)pFrame;
     (void)usrParm;
-
-    // 所有数据已发送完成，设置事件标志位
-    if (s_ltlp_sending_to_uwb)
-    {
-        uwb_ltlp_set_ltlp_data_ready();
-        s_ltlp_sending_to_uwb = false;
-        elog_d("OtaTask", "LTLP data ready flag set");
-    }
 }

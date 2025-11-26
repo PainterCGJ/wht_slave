@@ -6,10 +6,10 @@
 static osMessageQueueId_t g_uwb_to_ltlp_queue = NULL;
 static osMessageQueueId_t g_ltlp_to_uwb_queue = NULL;
 static osEventFlagsId_t g_conducting_event = NULL;
+static const char *TAG = "uwb_ltlp_queue";
 
 int uwb_ltlp_queue_init(void)
 {
-    static const char *TAG = "uwb_ltlp_queue";
 
     // 创建UWB->LTLP队列
     g_uwb_to_ltlp_queue = osMessageQueueNew(QUEUE_SIZE, sizeof(uint8_t), NULL);
@@ -101,10 +101,12 @@ void uwb_ltlp_set_ltlp_data_ready(void)
 {
     if (g_conducting_event == NULL)
     {
+        elog_e("uwb_ltlp_queue", "g_conducting_event is NULL");
         return;
     }
 
     // 设置LTLP数据就绪事件标志
+    elog_d("uwb_ltlp_queue", "Setting LTLP data ready event flag");
     osEventFlagsSet(g_conducting_event, UWB_LTLP_EVENT_LTLP_DATA_READY);
 }
 

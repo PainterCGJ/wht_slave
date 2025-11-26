@@ -137,6 +137,8 @@ void MasterComm::UwbCommTask()
                 uint32_t flags = osEventFlagsGet(event_flags);
                 if ((flags & UWB_LTLP_EVENT_LTLP_DATA_READY) != 0)
                 {
+                    uwb_ltlp_clear_ltlp_data_ready();
+                    elog_d(TAG, "LTLP data ready, reading data from LTLP->UWB queue");
                     // 从LTLP->UWB队列读取数据并发送
                     std::vector<uint8_t> ltlp_data;
                     uint8_t byte;
