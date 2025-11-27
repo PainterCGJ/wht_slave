@@ -112,6 +112,8 @@ endif()
 # 合并固件在 CMAKE_BINARY_DIR 目录中（不是子目录）
 set(SOURCE_COMBINED_BIN "${CMAKE_BINARY_DIR}/${PROJECT_NAME}_combined.bin")
 set(DEST_COMBINED_BIN "${BIN_DIR}/${PROJECT_NAME}_combined_${VERSION_SUFFIX}.bin")
+set(SOURCE_COMBINED_HEX "${CMAKE_BINARY_DIR}/${PROJECT_NAME}_combined.hex")
+set(DEST_COMBINED_HEX "${BIN_DIR}/${PROJECT_NAME}_combined_${VERSION_SUFFIX}.hex")
 
 message(STATUS "Looking for combined firmware: ${SOURCE_COMBINED_BIN}")
 
@@ -121,6 +123,18 @@ if(EXISTS ${SOURCE_COMBINED_BIN})
     file(RENAME ${BIN_DIR}/${PROJECT_NAME}_combined.bin ${DEST_COMBINED_BIN})
     message(STATUS "Successfully copied combined firmware to: ${DEST_COMBINED_BIN}")
 else()
-    message(STATUS "Combined firmware not found (this is OK if not using combined firmware)")
+    message(STATUS "Combined firmware .bin not found (this is OK if not using combined firmware)")
+endif()
+
+# 复制合并的 HEX 文件
+message(STATUS "Looking for combined HEX firmware: ${SOURCE_COMBINED_HEX}")
+
+if(EXISTS ${SOURCE_COMBINED_HEX})
+    message(STATUS "Found combined HEX firmware, copying...")
+    file(COPY ${SOURCE_COMBINED_HEX} DESTINATION ${BIN_DIR})
+    file(RENAME ${BIN_DIR}/${PROJECT_NAME}_combined.hex ${DEST_COMBINED_HEX})
+    message(STATUS "Successfully copied combined HEX firmware to: ${DEST_COMBINED_HEX}")
+else()
+    message(STATUS "Combined firmware .hex not found (this is OK if not using combined firmware)")
 endif()
 
