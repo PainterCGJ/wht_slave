@@ -799,11 +799,45 @@ void SlaveDevice::DataCollectionTask::sendDataToBackend() const
 
     if (dataMsg->conductionLength > 0)
     {
-        elog_v(TAG, "Preparing to send %d bytes of cached conduction data to backend", dataMsg->conductionLength);
+        // Print total bytes of conduction test data
+        elog_i(TAG, "=== Conduction Data Upload Statistics ===");
+        elog_i(TAG, "Total conduction test data bytes: %d bytes", dataMsg->conductionLength);
 
-        // 使用协议处理器打包消息为Slave2Backend格式（会自动分片）
+        // Use protocol processor to pack message in Slave2Backend format (auto-fragmentation)
         const auto packedData =
             parent.m_processor.packSlave2BackendMessage(parent.m_deviceId, parent.m_deviceStatus, *dataMsg);
+
+        // Calculate statistics
+        size_t totalFrameBytes = 0;         // Total bytes of all frames (including frame headers)
+        size_t totalPayloadBytes = 0;       // Total bytes of all payloads
+        const size_t FRAME_HEADER_SIZE = 7; // Frame header size: 7 bytes
+
+        for (const auto &fragment : packedData)
+        {
+            totalFrameBytes += fragment.size();
+            // Payload of each fragment = total size - frame header size
+            if (fragment.size() >= FRAME_HEADER_SIZE)
+            {
+                totalPayloadBytes += (fragment.size() - FRAME_HEADER_SIZE);
+            }
+        }
+
+        // Print statistics
+        elog_i(TAG, "Fragment count: %d", packedData.size());
+        if (packedData.size() > 1)
+        {
+            elog_i(TAG, "Total frame bytes (including headers): %d bytes", totalFrameBytes);
+            elog_i(TAG, "Total payload bytes: %d bytes", totalPayloadBytes);
+            elog_i(TAG, "Total frame header overhead: %d bytes (%d frames × %d bytes/frame)",
+                   packedData.size() * FRAME_HEADER_SIZE, packedData.size(), FRAME_HEADER_SIZE);
+        }
+        else
+        {
+            elog_i(TAG, "Single frame total bytes (including header): %d bytes", totalFrameBytes);
+            elog_i(TAG, "Single frame payload bytes: %d bytes", totalPayloadBytes);
+        }
+        elog_i(TAG, "Total bytes to upload: %d bytes", totalFrameBytes);
+        elog_i(TAG, "==========================================");
 
         // 保存所有分片，准备跨时隙发送
         parent.m_pendingFragments = packedData;
