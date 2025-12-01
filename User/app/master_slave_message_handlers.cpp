@@ -25,7 +25,9 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
     // 1. 进行时间校准，计算与主机时间的偏移量
     uint64_t localTimestamp = HptimerGetUs();
     int64_t timeOffset = static_cast<int64_t>(syncMsg->currentTime) - static_cast<int64_t>(localTimestamp);
-    device->m_timeOffset = timeOffset;
+
+    // 使用线程安全的方法设置时间偏移量
+    device->SetTimeOffset(timeOffset);
 
     // 更新sync消息接收时间，进入TDMA模式
     device->m_lastSyncMessageTime = localTimestamp;

@@ -46,7 +46,7 @@ SlaveDevice::SlaveDevice()
       m_hasPendingResetResponse(false),        // 初始无待回复的Reset消息
       m_pendingSlaveControlResponse(nullptr),  // 初始化待回复的SlaveControl响应为空
       m_pendingResetResponse(nullptr),         // 初始化待回复的Reset响应为空
-      m_deviceStatus({}), m_masterComm()
+      m_deviceStatus({}), m_masterComm(), m_timeOffsetMutex("TimeOffsetMutex")
 {
 
     // Initialize continuity collector
@@ -175,25 +175,38 @@ uint32_t SlaveDevice::generateRandomDelay()
     return seed % HEARTBEAT_MAX_RANDOM_DELAY_MS;
 }
 
+void SlaveDevice::SetTimeOffset(int64_t timeOffset)
+{
+    // 使用互斥锁保护时间偏移量的写入，避免并发访问冲突
+    m_timeOffsetMutex.take();
+    m_timeOffset = timeOffset;
+    m_timeOffsetMutex.give();
+}
+
 uint64_t SlaveDevice::GetSyncTimestampUs() const
 {
-    // 获取当前本地时间（微秒）
+    // 在锁内同时读取本地时间和偏移量，确保原子性
+    m_timeOffsetMutex.take();
     const uint64_t localTimeUs = HptimerGetUs();
+    const int64_t timeOffset = m_timeOffset;
+    m_timeOffsetMutex.give();
 
     // 应用时间偏移量得到同步时间（微秒）
-    const uint64_t syncTimeUs = localTimeUs + m_timeOffset;
+    const uint64_t syncTimeUs = localTimeUs + timeOffset;
 
-    // 转换为毫秒
     return syncTimeUs;
 }
 
 uint32_t SlaveDevice::GetSyncTimestampMs() const
 {
-    // 获取当前本地时间（微秒）
+    // 在锁内同时读取本地时间和偏移量，确保原子性
+    m_timeOffsetMutex.take();
     const uint64_t localTimeUs = HptimerGetUs();
+    const int64_t timeOffset = m_timeOffset;
+    m_timeOffsetMutex.give();
 
     // 应用时间偏移量得到同步时间（微秒）
-    const uint64_t syncTimeUs = localTimeUs + m_timeOffset;
+    const uint64_t syncTimeUs = localTimeUs + timeOffset;
 
     // 转换为毫秒
     return static_cast<uint32_t>(syncTimeUs / 1000);

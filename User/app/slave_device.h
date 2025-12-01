@@ -12,6 +12,7 @@
 #if ENABLE_OTA_TASK
 #include "ota_task.h"
 #endif
+#include "MutexCPP.h"
 #include "slave_device_state.h"
 #include "slot_manager.h"
 
@@ -174,6 +175,12 @@ class SlaveDevice
     static uint32_t getCurrentTimestamp();
 
     /**
+     * 设置时间偏移量（线程安全）
+     * @param timeOffset 时间偏移量（微秒）
+     */
+    void SetTimeOffset(int64_t timeOffset);
+
+    /**
      * 获取同步时间戳（考虑时间偏移）
      * @return 同步时间戳（微秒）
      */
@@ -288,6 +295,9 @@ class SlaveDevice
 
     // Initialize message handlers
     void InitializeMessageHandlers();
+
+    // 时间偏移量互斥锁，保护 m_timeOffset 的并发访问
+    mutable FreeRTOScpp::Mutex m_timeOffsetMutex;
 
     /**
      * 打印系统剩余堆栈信息（私有方法）
