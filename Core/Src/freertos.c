@@ -33,6 +33,7 @@
 #include "gpio.h"
 #include "uart_cmd_handler.h"
 #include "usart.h"
+#include "firmware_version.h"
 
 /* USER CODE END Includes */
 
@@ -165,6 +166,10 @@ void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN StartDefaultTask */
     osDelay(50);    // 等待系统稳定
+
+    // 输出系统启动日志，包含版本信息
+    elog_info("SYSTEM", "System startup - Firmware Version: %s, Build Date: %s", 
+              FIRMWARE_VERSION_STRING, FIRMWARE_BUILD_DATE);
 
     // 阻塞式检测工厂测试入口指令（1秒）
     if (factory_test_blocking_check_entry()) {
