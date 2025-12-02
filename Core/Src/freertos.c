@@ -168,8 +168,7 @@ void StartDefaultTask(void *argument)
     osDelay(50);    // 等待系统稳定
 
     // 输出系统启动日志，包含版本信息
-    elog_info("SYSTEM", "System startup - Firmware Version: %s, Build Date: %s", 
-              FIRMWARE_VERSION_STRING, FIRMWARE_BUILD_DATE);
+    
 
     // 阻塞式检测工厂测试入口指令（1秒）
     if (factory_test_blocking_check_entry()) {
@@ -189,7 +188,8 @@ void StartDefaultTask(void *argument)
         HAL_UART_Init(&RS485_UART);
         // 重新启动UART接收中断，因为波特率更改后中断会失效
         uart_cmd_handler_restart_interrupt();
-
+        elog_info("SYSTEM", "System startup - Firmware Version: %s, Build Date: %s", 
+          FIRMWARE_VERSION_STRING, FIRMWARE_BUILD_DATE);
         main_app();
 
         // 正常应用程序完成后的循环
