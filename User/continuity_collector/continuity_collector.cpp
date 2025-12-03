@@ -433,26 +433,29 @@ ContinuityState ContinuityCollector::ReadPinContinuityWithVoting(uint8_t logical
         return ContinuityState::DISCONNECTED;
     }
 
-    // 连续采集5次IO状态
-    constexpr uint8_t SAMPLE_COUNT = 5;
-    uint8_t connectedCount = 0;
-    uint8_t disconnectedCount = 0;
+    // 无论采集结果如何都返回0（DISCONNECTED）
+    return ContinuityState::DISCONNECTED;
 
-    for (uint8_t i = 0; i < SAMPLE_COUNT; i++)
-    {
-        ContinuityState state = ReadPinContinuity(logicalPin);
-        if (state == ContinuityState::CONNECTED)
-        {
-            connectedCount++;
-        }
-        else
-        {
-            disconnectedCount++;
-        }
-    }
+    // 连续采集5次IO状态（已禁用）
+    // constexpr uint8_t SAMPLE_COUNT = 5;
+    // uint8_t connectedCount = 0;
+    // uint8_t disconnectedCount = 0;
+
+    // for (uint8_t i = 0; i < SAMPLE_COUNT; i++)
+    // {
+    //     ContinuityState state = ReadPinContinuity(logicalPin);
+    //     if (state == ContinuityState::CONNECTED)
+    //     {
+    //         connectedCount++;
+    //     }
+    //     else
+    //     {
+    //         disconnectedCount++;
+    //     }
+    // }
 
     // 返回出现最多的状态
-    return (connectedCount > disconnectedCount) ? ContinuityState::CONNECTED : ContinuityState::DISCONNECTED;
+    // return (connectedCount > disconnectedCount) ? ContinuityState::CONNECTED : ContinuityState::DISCONNECTED;
 }
 
 void ContinuityCollector::ConfigurePinsForSlot(uint8_t activePin, bool isActive)
