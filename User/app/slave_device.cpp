@@ -428,9 +428,18 @@ void SlaveDevice::OnSlotChanged(const SlotInfo &slotInfo)
         }
         else
         {
-            // 如果分片数量少于激活时隙数量，在多余的时隙中不发送
-            elog_e(TAG, "No fragment for activePin %d (total fragments %d)", slotInfo.m_activePin,
-                   m_pendingFragments.size());
+            // 如果分片数量少于激活时隙数量，说明所有分片都已发送完成
+            // 由于 activePin 是递增的，当 targetFragmentIndex >= m_pendingFragments.size() 时，
+            // 说明所有分片都已经处理过了，应该清除分片发送状态
+            if (!m_pendingFragments.empty())
+            {
+                elog_v(TAG, "All fragments (%d) sent (activePin %d >= fragment count), clearing fragment sending state",
+                       m_pendingFragments.size(), slotInfo.m_activePin);
+            }
+            // 清空分片发送状态
+            m_pendingFragments.clear();
+            m_currentFragmentIndex = 0;
+            m_isFragmentSendingInProgress = false;
         }
     }
     // 检查是否是本设备的第一个激活时隙
