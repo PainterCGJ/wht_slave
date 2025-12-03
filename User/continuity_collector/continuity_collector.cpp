@@ -266,36 +266,8 @@ std::vector<uint8_t> ContinuityCollector::GetDataVector() const
     size_t totalBytes = (totalBits + 7) / 8; // 向上取整
     compressedData.reserve(totalBytes);
 
-    uint8_t currentByte = 0;
-    uint8_t bitPosition = 7; // 从高位开始（大端）
-
-    for (const auto &row : m_dataMatrix)
-    {
-        for (size_t pin = 0; pin < m_config.m_num && pin < row.size(); pin++)
-        {
-            uint8_t bitValue = (row[pin] == ContinuityState::CONNECTED) ? 1 : 0;
-
-            // 设置对应的高位
-            currentByte |= (bitValue << bitPosition);
-
-            if (bitPosition == 0)
-            {
-                compressedData.push_back(currentByte);
-                currentByte = 0;
-                bitPosition = 7;
-            }
-            else
-            {
-                bitPosition--;
-            }
-        }
-    }
-
-    // 处理不足8位的最后一个字节
-    if (bitPosition != 7)
-    {
-        compressedData.push_back(currentByte);
-    }
+    // 使用测试数据：全部填充0
+    compressedData.resize(totalBytes, 0x00);
 
     return compressedData;
 }
