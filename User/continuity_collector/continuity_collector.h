@@ -175,9 +175,10 @@ class ContinuityCollector
     int8_t m_lastActivePin; // 上一个激活的引脚（-1表示无）
 
     // 私有方法
-    void InitializeGpioPins();                                   // 初始化GPIO引脚
-    void DeinitializeGpioPins();                                 // 反初始化GPIO引脚
-    ContinuityState ReadPinContinuity(uint8_t logicalPin);       // 读取单个引脚导通状态
+    void InitializeGpioPins();                                       // 初始化GPIO引脚
+    void DeinitializeGpioPins();                                     // 反初始化GPIO引脚
+    ContinuityState ReadPinContinuity(uint8_t logicalPin);           // 读取单个引脚导通状态
+    ContinuityState ReadPinContinuityWithVoting(uint8_t logicalPin); // 连续采集5次IO状态，返回出现最多的状态
     void ConfigurePinsForSlot(uint8_t activePin, bool isActive); // 为指定时隙配置引脚模式
     void DelayMs(uint32_t ms);                                   // 延迟函数
 

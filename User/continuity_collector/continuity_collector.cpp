@@ -175,10 +175,10 @@ void ContinuityCollector::ProcessSlot(uint16_t slotNumber, uint8_t activePin, bo
     slotData.clear();
     slotData.reserve(m_config.m_num);
 
-    // 读取当前时隙的所有引脚状态
+    // 读取当前时隙的所有引脚状态（连续采集5次，取出现最多的状态）
     for (uint8_t pin = 0; pin < m_config.m_num; pin++)
     {
-        ContinuityState state = ReadPinContinuity(pin);
+        ContinuityState state = ReadPinContinuityWithVoting(pin);
         slotData.push_back(state);
     }
 
@@ -424,6 +424,35 @@ ContinuityState ContinuityCollector::ReadPinContinuity(uint8_t logicalPin)
 
     // 高电平表示导通，低电平表示断开
     return (pinState == GPIO_PIN_SET) ? ContinuityState::CONNECTED : ContinuityState::DISCONNECTED;
+}
+
+ContinuityState ContinuityCollector::ReadPinContinuityWithVoting(uint8_t logicalPin)
+{
+    if (logicalPin >= m_config.m_num)
+    {
+        return ContinuityState::DISCONNECTED;
+    }
+
+    // 连续采集5次IO状态
+    constexpr uint8_t SAMPLE_COUNT = 5;
+    uint8_t connectedCount = 0;
+    uint8_t disconnectedCount = 0;
+
+    for (uint8_t i = 0; i < SAMPLE_COUNT; i++)
+    {
+        ContinuityState state = ReadPinContinuity(logicalPin);
+        if (state == ContinuityState::CONNECTED)
+        {
+            connectedCount++;
+        }
+        else
+        {
+            disconnectedCount++;
+        }
+    }
+
+    // 返回出现最多的状态
+    return (connectedCount > disconnectedCount) ? ContinuityState::CONNECTED : ContinuityState::DISCONNECTED;
 }
 
 void ContinuityCollector::ConfigurePinsForSlot(uint8_t activePin, bool isActive)
