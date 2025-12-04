@@ -451,6 +451,11 @@ ContinuityState ContinuityCollector::ReadPinContinuityWithVoting(uint8_t logical
         }
     }
 
+    if (abs(connectedCount - disconnectedCount) <= 2)
+    {
+        elog_w(TAG, " connected(%d)/disconnected(%d)", connectedCount, disconnectedCount);
+    }
+
     // 返回出现最多的状态
     return (connectedCount > disconnectedCount) ? ContinuityState::CONNECTED : ContinuityState::DISCONNECTED;
 }
