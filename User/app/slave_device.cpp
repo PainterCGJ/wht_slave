@@ -850,23 +850,6 @@ void SlaveDevice::DataCollectionTask::sendDataToBackend() const
             }
         }
 
-        // Print statistics
-        // elog_i(TAG, "Fragment count: %d", packedData.size());
-        // if (packedData.size() > 1)
-        // {
-        //     elog_i(TAG, "Total frame bytes (including headers): %d bytes", totalFrameBytes);
-        //     elog_i(TAG, "Total payload bytes: %d bytes", totalPayloadBytes);
-        //     elog_i(TAG, "Total frame header overhead: %d bytes (%d frames × %d bytes/frame)",
-        //            packedData.size() * FRAME_HEADER_SIZE, packedData.size(), FRAME_HEADER_SIZE);
-        // }
-        // else
-        // {
-        //     elog_i(TAG, "Single frame total bytes (including header): %d bytes", totalFrameBytes);
-        //     elog_i(TAG, "Single frame payload bytes: %d bytes", totalPayloadBytes);
-        // }
-        // elog_i(TAG, "Total bytes to upload: %d bytes", totalFrameBytes);
-        // elog_i(TAG, "==========================================");
-
         // 保存所有分片，准备跨时隙发送
         parent.m_pendingFragments = packedData;
         parent.m_currentFragmentIndex = 0;
