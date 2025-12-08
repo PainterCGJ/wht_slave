@@ -120,6 +120,7 @@ bool SlotManager::Start()
 
     // 记录时隙调度开始的绝对时间
     m_StartTimeUs = GetCurrentSyncTimeUs();
+    elog_d("SlotManager", "Start time: %lu ms", m_StartTimeUs / 1000);
     m_LastSlotTimeUs = m_StartTimeUs;
 
     // 设置初始时隙为0，但不立即触发回调

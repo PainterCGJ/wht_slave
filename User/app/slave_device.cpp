@@ -400,6 +400,34 @@ void SlaveDevice::OnSlotChanged(const SlotInfo &slotInfo)
         return;
     }
 
+    // 优先发送待回复的响应消息（避免与数据传输冲撞）
+    // 只在第一个激活时隙发送待回复的响应
+    if (slotInfo.m_slotType == SlotType::ACTIVE && slotInfo.m_activePin == 0)
+    {
+        sendPendingResponses();
+    }
+
+    // 先进行采集动作
+    // 通知采集器处理当前时隙
+    m_continuityCollector->ProcessSlot(slotInfo.m_currentSlot, slotInfo.m_activePin,
+                                       slotInfo.m_slotType == SlotType::ACTIVE);
+
+    // 检查采集是否完成
+    if (m_continuityCollector->IsCollectionComplete())
+    {
+        elog_v(TAG, "Data collection cycle completed, saving data for next cycle");
+
+        // 保存当前采集的数据，供下一个周期发送
+        const auto dataVector = m_continuityCollector->GetDataVector();
+        lastCollectionData = dataVector;
+        m_hasDataToSend = true;
+        elog_v(TAG, "Saved %d bytes of data for next cycle transmission", dataVector.size());
+
+        // 清空数据矩阵为下一次采集做准备
+        m_continuityCollector->ClearData();
+    }
+
+    // 采集完成后，再进行打包和发送动作
     // 检查是否正在进行分片发送，如果是，在本设备的每个激活时隙发送对应的分片
     // 第一个激活时隙（activePin == 0）发送第一包，第二个激活时隙（activePin == 1）发送第二包，以此类推
     if (m_isFragmentSendingInProgress && slotInfo.m_slotType == SlotType::ACTIVE)
@@ -446,9 +474,6 @@ void SlaveDevice::OnSlotChanged(const SlotInfo &slotInfo)
     else if (slotInfo.m_slotType == SlotType::ACTIVE && slotInfo.m_activePin == 0)
     { // 第一个激活引脚
 
-        // 优先发送待回复的响应消息（避免与数据传输冲撞）
-        sendPendingResponses();
-
         // // 在TDMA模式下发送相应消息（当前在第一个激活时隙）
         // if (m_inTdmaMode)
         // {
@@ -467,25 +492,6 @@ void SlaveDevice::OnSlotChanged(const SlotInfo &slotInfo)
             elog_v(TAG, "Sending current collection data to backend in first active slot");
             m_dataCollectionTask->sendDataToBackend();
         }
-    }
-
-    // 通知采集器处理当前时隙
-    m_continuityCollector->ProcessSlot(slotInfo.m_currentSlot, slotInfo.m_activePin,
-                                       slotInfo.m_slotType == SlotType::ACTIVE);
-
-    // 检查采集是否完成
-    if (m_continuityCollector->IsCollectionComplete())
-    {
-        elog_v(TAG, "Data collection cycle completed, saving data for next cycle");
-
-        // 保存当前采集的数据，供下一个周期发送
-        const auto dataVector = m_continuityCollector->GetDataVector();
-        lastCollectionData = dataVector;
-        m_hasDataToSend = true;
-        elog_v(TAG, "Saved %d bytes of data for next cycle transmission", dataVector.size());
-
-        // 清空数据矩阵为下一次采集做准备
-        m_continuityCollector->ClearData();
     }
 }
 
@@ -822,7 +828,7 @@ void SlaveDevice::DataCollectionTask::sendDataToBackend() const
     if (dataMsg->conductionLength > 0)
     {
         // Print total bytes of conduction test data
-        elog_i(TAG, "=== Conduction Data Upload Statistics ===");
+        // elog_i(TAG, "=== Conduction Data Upload Statistics ===");
         elog_i(TAG, "Total conduction test data bytes: %d bytes", dataMsg->conductionLength);
 
         // Use protocol processor to pack message in Slave2Backend format (auto-fragmentation)
@@ -845,21 +851,21 @@ void SlaveDevice::DataCollectionTask::sendDataToBackend() const
         }
 
         // Print statistics
-        elog_i(TAG, "Fragment count: %d", packedData.size());
-        if (packedData.size() > 1)
-        {
-            elog_i(TAG, "Total frame bytes (including headers): %d bytes", totalFrameBytes);
-            elog_i(TAG, "Total payload bytes: %d bytes", totalPayloadBytes);
-            elog_i(TAG, "Total frame header overhead: %d bytes (%d frames × %d bytes/frame)",
-                   packedData.size() * FRAME_HEADER_SIZE, packedData.size(), FRAME_HEADER_SIZE);
-        }
-        else
-        {
-            elog_i(TAG, "Single frame total bytes (including header): %d bytes", totalFrameBytes);
-            elog_i(TAG, "Single frame payload bytes: %d bytes", totalPayloadBytes);
-        }
-        elog_i(TAG, "Total bytes to upload: %d bytes", totalFrameBytes);
-        elog_i(TAG, "==========================================");
+        // elog_i(TAG, "Fragment count: %d", packedData.size());
+        // if (packedData.size() > 1)
+        // {
+        //     elog_i(TAG, "Total frame bytes (including headers): %d bytes", totalFrameBytes);
+        //     elog_i(TAG, "Total payload bytes: %d bytes", totalPayloadBytes);
+        //     elog_i(TAG, "Total frame header overhead: %d bytes (%d frames × %d bytes/frame)",
+        //            packedData.size() * FRAME_HEADER_SIZE, packedData.size(), FRAME_HEADER_SIZE);
+        // }
+        // else
+        // {
+        //     elog_i(TAG, "Single frame total bytes (including header): %d bytes", totalFrameBytes);
+        //     elog_i(TAG, "Single frame payload bytes: %d bytes", totalPayloadBytes);
+        // }
+        // elog_i(TAG, "Total bytes to upload: %d bytes", totalFrameBytes);
+        // elog_i(TAG, "==========================================");
 
         // 保存所有分片，准备跨时隙发送
         parent.m_pendingFragments = packedData;

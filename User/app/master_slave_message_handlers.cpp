@@ -199,8 +199,9 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
     {
         // 延迟启动
         device->m_deviceState = SlaveDeviceState::READY;
-        uint64_t delayUs = syncMsg->startTime - currentSyncTime;
-        elog_v("SyncMessageHandler", "Collection scheduled to start in %lu us", static_cast<unsigned long>(delayUs));
+        // uint64_t delayUs = syncMsg->startTime - currentSyncTime;
+        elog_v("SyncMessageHandler", "Collection scheduled to start in %lu ms",
+               static_cast<unsigned long>(syncMsg->startTime) / 1000);
     }
 
     return nullptr; // SyncMessage 不需要响应

@@ -168,7 +168,7 @@ void ContinuityCollector::ProcessSlot(uint16_t slotNumber, uint8_t activePin, bo
     // 配置当前时隙的引脚状态
     ConfigurePinsForSlot(activePin, isActive);
 
-    DelayMs(3);
+    // DelayMs(3);
 
     // 使用静态缓冲区避免频繁的内存分配
     static std::vector<ContinuityState> slotData;
@@ -451,7 +451,7 @@ ContinuityState ContinuityCollector::ReadPinContinuityWithVoting(uint8_t logical
         }
     }
 
-    if (abs(connectedCount - disconnectedCount) <= 2)
+    if (abs(connectedCount - disconnectedCount) != 5)
     {
         elog_w(TAG, " connected(%d)/disconnected(%d)", connectedCount, disconnectedCount);
     }
