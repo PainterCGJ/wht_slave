@@ -165,6 +165,40 @@ void ContinuityCollector::ProcessSlot(uint16_t slotNumber, uint8_t activePin, bo
         return;
     }
 
+    // 在设置IO模式之前，将IO1输出高电平持续10个NOP长度
+    {
+        // 使能GPIOA时钟（IO1在GPIOA）
+        enableGpioPortClock(IO1_GPIO_Port);
+
+        // 将IO1设置为输出模式，输出高电平
+        GPIO_InitTypeDef GPIO_InitStruct = {0};
+        GPIO_InitStruct.Pin = IO1_Pin;
+        GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+        GPIO_InitStruct.Pull = GPIO_NOPULL;
+        GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+        HAL_GPIO_Init(IO1_GPIO_Port, &GPIO_InitStruct);
+        HAL_GPIO_WritePin(IO1_GPIO_Port, IO1_Pin, GPIO_PIN_SET);
+
+        // 持续10个NOP长度的高电平
+        __NOP();
+        __NOP();
+        __NOP();
+        __NOP();
+        __NOP();
+        __NOP();
+        __NOP();
+        __NOP();
+        __NOP();
+        __NOP();
+
+        // 将IO1设置为输入模式
+        GPIO_InitStruct.Pin = IO1_Pin;
+        GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+        GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+        GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+        HAL_GPIO_Init(IO1_GPIO_Port, &GPIO_InitStruct);
+    }
+
     // 配置当前时隙的引脚状态
     ConfigurePinsForSlot(activePin, isActive);
 
