@@ -136,6 +136,23 @@ void ContinuityCollector::StopCollection()
     }
 }
 
+void ContinuityCollector::SetAllPinsToInputMode()
+{
+    elog_v(TAG, "Setting all pins to input mode");
+
+    // 将所有已配置的引脚设置为输入模式
+    for (uint8_t pin = 0; pin < m_config.m_num; pin++)
+    {
+        GpioPin gpioPin = m_config.GetGpioPin(pin);
+        HalGpioInit(gpioPin, GPIO_MODE_INPUT, GPIO_PULLDOWN);
+    }
+
+    // 重置最后一个激活的引脚标记
+    m_lastActivePin = -1;
+
+    elog_v(TAG, "All pins set to input mode");
+}
+
 // uint32_t ContinuityCollector::getCurrentTimeMs() {
 //     return hal_hptimer_get_ms();
 // }

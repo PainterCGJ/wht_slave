@@ -40,6 +40,11 @@ using SlotCallback = std::function<void(const SlotInfo &slotInfo)>;
 using SyncTimeCallback = std::function<uint64_t()>;
 
 /**
+ * 周期结束回调函数类型 - 用于在周期结束时通知外部
+ */
+using CycleEndCallback = std::function<void()>;
+
+/**
  * 时隙管理器类
  * 负责管理时隙调度，提供时隙切换事件通知
  */
@@ -102,6 +107,12 @@ class SlotManager
      * @param callback 获取同步时间的回调函数
      */
     void SetSyncTimeCallback(SyncTimeCallback callback);
+
+    /**
+     * 设置周期结束回调函数
+     * @param callback 周期结束时的回调函数
+     */
+    void SetCycleEndCallback(CycleEndCallback callback);
 
     /**
      * 获取当前时隙信息
@@ -174,6 +185,7 @@ class SlotManager
     // 回调函数
     SlotCallback m_SlotCallback;         // 时隙回调
     SyncTimeCallback m_SyncTimeCallback; // 同步时间回调
+    CycleEndCallback m_CycleEndCallback; // 周期结束回调
 
     /**
      * 获取当前同步时间（微秒）

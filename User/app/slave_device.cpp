@@ -62,6 +62,15 @@ SlaveDevice::SlaveDevice()
 
         // 设置时隙切换回调
         m_slotManager->SetSlotCallback([this](const SlotInfo &slotInfo) { this->OnSlotChanged(slotInfo); });
+
+        // 设置周期结束回调，在周期结束时将所有引脚设置为输入模式
+        m_slotManager->SetCycleEndCallback([this]() {
+            if (m_continuityCollector)
+            {
+                m_continuityCollector->SetAllPinsToInputMode();
+                elog_v(TAG, "Cycle ended, all pins set to input mode");
+            }
+        });
     }
 
     // set MTU = 1016

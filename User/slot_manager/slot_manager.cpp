@@ -5,7 +5,7 @@
 SlotManager::SlotManager()
     : m_StartSlot(0), m_DeviceSlotCount(0), m_TotalSlotCount(0), m_SlotIntervalMs(0), m_IsRunning(false),
       m_IsConfigured(false), m_IsFirstProcess(true), m_SingleCycleMode(false), m_CycleCompleted(false),
-      m_LastSlotTimeUs(0), m_StartTimeUs(0)
+      m_LastSlotTimeUs(0), m_StartTimeUs(0), m_CycleEndCallback(nullptr)
 {
     elog_v("SlotManager", "SlotManager constructed");
 }
@@ -185,17 +185,35 @@ void SlotManager::Process()
     uint16_t expectedSlot = totalCycles % m_TotalSlotCount;
 
     // 检查单周期模式下是否已完成一个完整周期
-    if (m_SingleCycleMode && !m_CycleCompleted && totalCycles >= m_TotalSlotCount)
+    // 需要等待最后一个时隙运行完整个时长（slotIntervalMs）
+    if (m_SingleCycleMode && !m_CycleCompleted)
     {
-        m_CycleCompleted = true;
-        elog_v("SlotManager", "Single cycle completed, stopping slot management");
-        Stop();
-        return;
+        // 计算最后一个时隙的结束时间
+        uint64_t lastSlotEndTimeUs = m_StartTimeUs + m_TotalSlotCount * slotIntervalUs;
+
+        // 如果当前时间已经超过最后一个时隙的结束时间，说明周期已完成
+        if (currentTimeUs >= lastSlotEndTimeUs)
+        {
+            m_CycleCompleted = true;
+            elog_v("SlotManager", "Single cycle completed (last slot finished), stopping slot management");
+
+            // 触发周期结束回调，通知外部将所有引脚设置为输入模式
+            if (m_CycleEndCallback)
+            {
+                m_CycleEndCallback();
+            }
+
+            Stop();
+            return;
+        }
     }
 
     // 检查是否需要切换到新的时隙
     if (expectedSlot != m_CurrentSlotInfo.m_currentSlot)
     {
+        // 检查是否从最后一个时隙切换到第0个时隙（周期结束）
+        bool cycleEnded = (m_CurrentSlotInfo.m_currentSlot == m_TotalSlotCount - 1) && (expectedSlot == 0);
+
         // 可能跳过了多个时隙，直接切换到正确的时隙
         SwitchToSlot(expectedSlot);
 
@@ -205,6 +223,19 @@ void SlotManager::Process()
 
         elog_v("SlotManager", "Absolute time sync - Expected slot: %d, Elapsed: %lu us, Cycle: %lu", expectedSlot,
                (unsigned long)elapsedFromStartUs, (unsigned long)totalCycles);
+
+        // 如果周期结束（从最后一个时隙切换到第0个时隙），触发周期结束回调
+        // 注意：需要等待最后一个时隙运行完整个时长
+        // 当 expectedSlot == 0 且 totalCycles >= m_TotalSlotCount 时，说明最后一个时隙已经运行完整个时长
+        if (cycleEnded && totalCycles >= m_TotalSlotCount)
+        {
+            elog_v("SlotManager", "Cycle ended (switched from last slot to slot 0, last slot duration completed)");
+            // 触发周期结束回调，通知外部将所有引脚设置为输入模式
+            if (m_CycleEndCallback)
+            {
+                m_CycleEndCallback();
+            }
+        }
     }
 }
 
@@ -216,6 +247,11 @@ void SlotManager::SetSlotCallback(SlotCallback callback)
 void SlotManager::SetSyncTimeCallback(SyncTimeCallback callback)
 {
     m_SyncTimeCallback = callback;
+}
+
+void SlotManager::SetCycleEndCallback(CycleEndCallback callback)
+{
+    m_CycleEndCallback = callback;
 }
 
 uint8_t SlotManager::GetCurrentActivePin() const

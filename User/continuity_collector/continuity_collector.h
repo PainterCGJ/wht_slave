@@ -205,6 +205,9 @@ class ContinuityCollector
     // 停止采集
     void StopCollection();
 
+    // 将所有引脚设置为输入模式（用于周期结束时）
+    void SetAllPinsToInputMode();
+
     // 处理时隙事件（由外部时隙管理器调用）
     void ProcessSlot(uint16_t slotNumber, uint8_t activePin, bool isActive);
 
