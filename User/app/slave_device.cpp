@@ -872,8 +872,7 @@ void SlaveDevice::DataCollectionTask::sendDataToBackend() const
             const auto &firstFragment = parent.m_pendingFragments[0];
             if (parent.send(firstFragment) == 0)
             {
-                elog_v(TAG, "Sent first fragment 1/%d to backend (size: %d bytes)", parent.m_pendingFragments.size(),
-                       firstFragment.size());
+                elog_d(TAG, "Sending fragment 1/%d in active slot 0 (pin 0)", parent.m_pendingFragments.size());
 
                 parent.m_currentFragmentIndex = 1; // 下一个要发送的分片索引
 

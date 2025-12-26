@@ -60,10 +60,21 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
     // 4. 查找本从机的配置
     bool configFound = false;
     bool resetRequested = false;
+    bool configChanged = false;
+    uint8_t oldTestCount = device->currentConfig.testCount;
+
     for (const auto &config : syncMsg->slaveConfigs)
     {
         if (config.slaveId == device->m_deviceId)
         {
+            // 检测配置是否改变
+            if (device->currentConfig.testCount != config.testCount)
+            {
+                configChanged = true;
+                elog_v("SyncMessageHandler", "Configuration changed: testCount %d -> %d", oldTestCount,
+                       config.testCount);
+            }
+
             device->currentConfig.timeSlot = config.timeSlot;
             device->currentConfig.testCount = config.testCount;
             device->m_isConfigured = true;
@@ -74,6 +85,21 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
                    device->m_deviceId, config.timeSlot, config.testCount, config.reset);
             break;
         }
+    }
+
+    // 如果配置改变，清除之前的分片发送状态和缓存数据
+    if (configChanged)
+    {
+        elog_v("SyncMessageHandler", "Clearing cached data and fragment sending state due to config change");
+
+        // 清除分片发送状态
+        device->m_isFragmentSendingInProgress = false;
+        device->m_pendingFragments.clear();
+        device->m_currentFragmentIndex = 0;
+
+        // 清除缓存的采集数据
+        device->lastCollectionData.clear();
+        device->m_hasDataToSend = false;
     }
 
     if (!configFound)
