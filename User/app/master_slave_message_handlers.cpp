@@ -37,20 +37,22 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
            static_cast<unsigned long>(localTimestamp), static_cast<unsigned long>(syncMsg->currentTime),
            static_cast<long>(timeOffset));
 
-    // 2. 存储采集间隔
-    device->currentConfig.interval = syncMsg->interval;
+    // 2. 保存旧配置用于比较，并记录是否是首次配置
+    SlaveDeviceConfig oldConfig = device->currentConfig;
+    bool wasConfigured = device->m_isConfigured;
 
-    // 3. 根据模式设置采集配置
+    // 3. 根据模式设置采集配置（临时设置，用于后续比较）
+    CollectionMode newMode;
     switch (syncMsg->mode)
     {
     case 0: // 导通检测
-        device->currentConfig.mode = CollectionMode::CONDUCTION;
+        newMode = CollectionMode::CONDUCTION;
         break;
     case 1: // 阻值检测
-        device->currentConfig.mode = CollectionMode::RESISTANCE;
+        newMode = CollectionMode::RESISTANCE;
         break;
     case 2: // 卡钉检测
-        device->currentConfig.mode = CollectionMode::CLIP;
+        newMode = CollectionMode::CLIP;
         break;
     default:
         elog_w("SyncMessageHandler", "Unknown collection mode: %d", syncMsg->mode);
@@ -60,24 +62,15 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
     // 4. 查找本从机的配置
     bool configFound = false;
     bool resetRequested = false;
-    bool configChanged = false;
-    uint8_t oldTestCount = device->currentConfig.testCount;
+    uint8_t newTimeSlot = 0;
+    uint8_t newTestCount = 0;
 
     for (const auto &config : syncMsg->slaveConfigs)
     {
         if (config.slaveId == device->m_deviceId)
         {
-            // 检测配置是否改变
-            if (device->currentConfig.testCount != config.testCount)
-            {
-                configChanged = true;
-                elog_v("SyncMessageHandler", "Configuration changed: testCount %d -> %d", oldTestCount,
-                       config.testCount);
-            }
-
-            device->currentConfig.timeSlot = config.timeSlot;
-            device->currentConfig.testCount = config.testCount;
-            device->m_isConfigured = true;
+            newTimeSlot = config.timeSlot;
+            newTestCount = config.testCount;
             configFound = true;
             resetRequested = (config.reset == 1);
 
@@ -87,12 +80,31 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
         }
     }
 
-    // 如果配置改变，清除之前的分片发送状态和缓存数据
+    if (!configFound)
+    {
+        elog_w("SyncMessageHandler", "No configuration found for device 0x%08X", device->m_deviceId);
+        device->m_isConfigured = false;
+        return nullptr;
+    }
+
+    // 5. 比较配置是否改变（比较所有配置项）
+    bool configChanged = false;
+    if (oldConfig.mode != newMode || oldConfig.interval != syncMsg->interval || oldConfig.timeSlot != newTimeSlot ||
+        oldConfig.testCount != newTestCount)
+    {
+        configChanged = true;
+        elog_v("SyncMessageHandler",
+               "Configuration changed - Mode: %d->%d, Interval: %d->%d, TimeSlot: %d->%d, TestCount: %d->%d",
+               static_cast<int>(oldConfig.mode), static_cast<int>(newMode), oldConfig.interval, syncMsg->interval,
+               oldConfig.timeSlot, newTimeSlot, oldConfig.testCount, newTestCount);
+    }
+
+    // 6. 如果配置改变，清除之前的分片发送状态和缓存数据
     if (configChanged)
     {
         elog_v("SyncMessageHandler", "Clearing cached data and fragment sending state due to config change");
 
-        // 清除分片发送状态
+        // 清除分片发送状态（重新计算分包数量和发送分包所需要的时隙）
         device->m_isFragmentSendingInProgress = false;
         device->m_pendingFragments.clear();
         device->m_currentFragmentIndex = 0;
@@ -102,14 +114,14 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
         device->m_hasDataToSend = false;
     }
 
-    if (!configFound)
-    {
-        elog_w("SyncMessageHandler", "No configuration found for device 0x%08X", device->m_deviceId);
-        device->m_isConfigured = false;
-        return nullptr;
-    }
+    // 7. 更新配置（无论是否改变都更新）
+    device->currentConfig.mode = newMode;
+    device->currentConfig.interval = syncMsg->interval;
+    device->currentConfig.timeSlot = newTimeSlot;
+    device->currentConfig.testCount = newTestCount;
+    device->m_isConfigured = true;
 
-    // 处理复位请求
+    // 8. 处理复位请求
     if (resetRequested)
     {
         elog_v("SyncMessageHandler", "Reset requested for device 0x%08X", device->m_deviceId);
@@ -128,76 +140,89 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
         elog_v("SyncMessageHandler", "Reset completed, response queued for next active slot");
     }
 
-    // 5. 设置延迟启动时间
+    // 9. 设置延迟启动时间
     device->m_scheduledStartTime = syncMsg->startTime;
     device->m_isScheduledToStart = true;
 
-    // 6. 配置采集器
-    // totalCycles = sum of salve's testCount
-    uint16_t totalCycles = 0;
-    for (const auto &config : syncMsg->slaveConfigs)
+    // 10. 配置采集器和时隙管理器（仅在配置改变或首次配置时重新配置）
+    // 注意：首次配置时configChanged可能为true（因为oldConfig是默认值），
+    // 但如果之前已经配置过且配置未改变，则不需要重新配置
+    if (configChanged || !wasConfigured)
     {
-        totalCycles += config.testCount;
-    }
-
-    if (device->m_continuityCollector)
-    {
-        CollectorConfig collectorConfig(device->currentConfig.testCount, totalCycles);
-        if (!device->m_continuityCollector->Configure(collectorConfig))
-        {
-            elog_e("SyncMessageHandler", "Failed to configure continuity collector");
-            device->m_deviceState = SlaveDeviceState::DEV_ERR;
-            return nullptr;
-        }
-        elog_v("SyncMessageHandler", "Continuity collector configured - TestCount: %d, TotalCycles: %d",
-               device->currentConfig.testCount, totalCycles);
-    }
-
-    // 7. 配置时隙管理器（先停止再配置）
-    if (device->m_slotManager)
-    {
-        // 先停止当前运行的时隙管理器
-        device->m_slotManager->Stop();
-
-        // calculate startSlot
-        uint16_t startSlot = 0;
+        // 10.1 配置采集器
+        // totalCycles = sum of salve's testCount
+        uint16_t totalCycles = 0;
         for (const auto &config : syncMsg->slaveConfigs)
         {
-            if (config.slaveId == device->m_deviceId)
-            {
-                break;
-            }
-            startSlot += config.testCount;
+            totalCycles += config.testCount;
         }
 
-        uint8_t deviceSlotCount = device->currentConfig.testCount; // 每个设备占用一个时隙
-        uint16_t totalSlotCount = totalCycles;                     // 总时隙数等于从机数量
-        uint32_t slotIntervalMs = device->currentConfig.interval;
-
-        // 使用单周期模式配置SlotManager
-        if (!device->m_slotManager->Configure(startSlot, deviceSlotCount, totalSlotCount, slotIntervalMs, true))
+        if (device->m_continuityCollector)
         {
-            elog_e("SyncMessageHandler", "Failed to configure slot manager");
-            device->m_deviceState = SlaveDeviceState::DEV_ERR;
-            return nullptr;
+            CollectorConfig collectorConfig(device->currentConfig.testCount, totalCycles);
+            if (!device->m_continuityCollector->Configure(collectorConfig))
+            {
+                elog_e("SyncMessageHandler", "Failed to configure continuity collector");
+                device->m_deviceState = SlaveDeviceState::DEV_ERR;
+                return nullptr;
+            }
+            if (configChanged)
+            {
+                elog_v("SyncMessageHandler", "Continuity collector reconfigured - TestCount: %d, TotalCycles: %d",
+                       device->currentConfig.testCount, totalCycles);
+            }
+            else
+            {
+                elog_v("SyncMessageHandler", "Continuity collector configured - TestCount: %d, TotalCycles: %d",
+                       device->currentConfig.testCount, totalCycles);
+            }
         }
-        elog_v("SyncMessageHandler",
-               "Slot manager configured (single cycle) - StartSlot: %d, TotalSlots: %d, Interval: %d ms", startSlot,
-               totalSlotCount, slotIntervalMs);
 
-        // 打印详细的时隙信息
-        // elog_d("SyncMessageHandler",
-        //        "=== Slot Configuration Details ===");
-        elog_d("SyncMessageHandler", "StartSlot: %d (0x%04X)", startSlot, startSlot);
-        // elog_d("SyncMessageHandler",
-        //        "DeviceSlotCount: %d", deviceSlotCount);
-        // elog_d("SyncMessageHandler",
-        //        "TotalSlotCount: %d", totalSlotCount);
-        elog_d("SyncMessageHandler", "SlotInterval: %d ms", slotIntervalMs);
-        // elog_d("SyncMessageHandler",
-        //        "SlotRange: [%d, %d)", startSlot, startSlot + deviceSlotCount);
-        // elog_d("SyncMessageHandler",11
-        //        "================================");
+        // 10.2 配置时隙管理器（先停止再配置）
+        if (device->m_slotManager)
+        {
+            // 先停止当前运行的时隙管理器
+            device->m_slotManager->Stop();
+
+            // calculate startSlot
+            uint16_t startSlot = 0;
+            for (const auto &config : syncMsg->slaveConfigs)
+            {
+                if (config.slaveId == device->m_deviceId)
+                {
+                    break;
+                }
+                startSlot += config.testCount;
+            }
+
+            uint8_t deviceSlotCount = device->currentConfig.testCount; // 每个设备占用一个时隙
+            uint16_t totalSlotCount = totalCycles;                     // 总时隙数等于从机数量
+            uint32_t slotIntervalMs = device->currentConfig.interval;
+
+            // 使用单周期模式配置SlotManager
+            if (!device->m_slotManager->Configure(startSlot, deviceSlotCount, totalSlotCount, slotIntervalMs, true))
+            {
+                elog_e("SyncMessageHandler", "Failed to configure slot manager");
+                device->m_deviceState = SlaveDeviceState::DEV_ERR;
+                return nullptr;
+            }
+            if (configChanged)
+            {
+                elog_v("SyncMessageHandler",
+                       "Slot manager reconfigured (single cycle) - StartSlot: %d, TotalSlots: %d, Interval: %d ms",
+                       startSlot, totalSlotCount, slotIntervalMs);
+            }
+            else
+            {
+                elog_v("SyncMessageHandler",
+                       "Slot manager configured (single cycle) - StartSlot: %d, TotalSlots: %d, Interval: %d ms",
+                       startSlot, totalSlotCount, slotIntervalMs);
+            }
+
+            // 打印详细的时隙信息
+            elog_d("SyncMessageHandler", "StartSlot: %d (0x%04X)", startSlot, startSlot);
+            elog_d("SyncMessageHandler", "SlotInterval: %d ms", slotIntervalMs);
+        }
     }
 
     // 8. 检查是否立即启动或延迟启动

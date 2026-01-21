@@ -12,6 +12,7 @@
         "--ranking-model=heuristics",
         "--query-driver=${env:ARM_CXX_PATH},${env:ARM_C_PATH}"
     ],
+    "cSpell.enabled": false,
     "todo-tree.tree.showBadges": false,
     "files.associations": {
         "main.h": "c",

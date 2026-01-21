@@ -182,6 +182,8 @@ void ContinuityCollector::ProcessSlot(uint16_t slotNumber, uint8_t activePin, bo
         return;
     }
 
+    // elog_d(TAG, "ProcessSlot: slotNumber: %d, activePin: %d, isActive: %s", slotNumber, activePin,
+    //        isActive ? "true" : "false");
     // 配置当前时隙的引脚状态
     ConfigurePinsForSlot(activePin, isActive);
 
