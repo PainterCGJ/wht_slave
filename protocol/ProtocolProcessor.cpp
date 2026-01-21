@@ -7,7 +7,6 @@
 #include "messages/Backend2Master.h"
 #include "messages/Master2Backend.h"
 #include "messages/Master2Slave.h"
-#include "messages/Slave2Backend.h"
 #include "messages/Slave2Master.h"
 
 
@@ -109,22 +108,35 @@ std::vector<uint8_t> ProtocolProcessor::packSlave2MasterMessageSingle(
     packFrameBuffer_.push_back((frame.packetLength >> 8) & 0xFF);
     packFrameBuffer_.insert(packFrameBuffer_.end(), frame.payload.begin(), frame.payload.end());
 
+    // 验证完整帧的关键字段（仅对COND_DATA_MSG）
+    if (message.getMessageId() == static_cast<uint8_t>(Slave2MasterMessageId::COND_DATA_MSG) && packFrameBuffer_.size() >= 15) {
+        elog_i("ProtocolProcessor", "Complete COND_DATA_MSG frame - Payload[0-6]: [0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X]",
+               packFrameBuffer_[7], packFrameBuffer_[8], packFrameBuffer_[9], packFrameBuffer_[10],
+               packFrameBuffer_[11], packFrameBuffer_[12], packFrameBuffer_[13]);
+    }
+
     return packFrameBuffer_;
 }
 
-std::vector<uint8_t> ProtocolProcessor::packSlave2BackendMessageSingle(
+std::vector<uint8_t> ProtocolProcessor::packSlave2MasterMessageSingle(
     uint32_t slaveId, const DeviceStatus &deviceStatus, const Message &message,
     uint8_t fragmentsSequence, uint8_t moreFragmentsFlag) {
     Frame frame;
-    frame.packetId = static_cast<uint8_t>(PacketId::SLAVE_TO_BACKEND);
+    frame.packetId = static_cast<uint8_t>(PacketId::SLAVE_TO_MASTER);
     frame.fragmentsSequence = fragmentsSequence;
     frame.moreFragmentsFlag = moreFragmentsFlag;
 
     // 构建载荷，使用可复用的buffer
     packBuffer_.clear();
     packBuffer_.push_back(message.getMessageId());
+    // elog_i("ProtocolProcessor", "Packing COND_DATA_MSG - MessageId: 0x%02X, SlaveId: 0x%08X, DeviceStatus: 0x%04X",
+    //        message.getMessageId(), slaveId, deviceStatus.toUint16());
     writeUint32LE(packBuffer_, slaveId);
     writeUint16LE(packBuffer_, deviceStatus.toUint16());
+    
+    // 验证写入的设备ID字节
+    // elog_i("ProtocolProcessor", "Written SlaveId bytes: [0x%02X 0x%02X 0x%02X 0x%02X]",
+    //        packBuffer_[1], packBuffer_[2], packBuffer_[3], packBuffer_[4]);
 
     auto messageData = message.serialize();
     packBuffer_.insert(packBuffer_.end(), messageData.begin(), messageData.end());
@@ -247,19 +259,8 @@ std::unique_ptr<Message> ProtocolProcessor::createMessage(PacketId packetId,
                         Slave2Master::ShortIdConfirmMessage>();
                 case Slave2MasterMessageId::HEARTBEAT_MSG:
                     return std::make_unique<Slave2Master::HeartbeatMessage>();
-            }
-            break;
-
-        case PacketId::SLAVE_TO_BACKEND:
-            switch (static_cast<Slave2BackendMessageId>(messageId)) {
-                case Slave2BackendMessageId::CONDUCTION_DATA_MSG:
-                    return std::make_unique<
-                        Slave2Backend::ConductionDataMessage>();
-                case Slave2BackendMessageId::RESISTANCE_DATA_MSG:
-                    return std::make_unique<
-                        Slave2Backend::ResistanceDataMessage>();
-                case Slave2BackendMessageId::CLIP_DATA_MSG:
-                    return std::make_unique<Slave2Backend::ClipDataMessage>();
+                case Slave2MasterMessageId::COND_DATA_MSG:
+                    return std::make_unique<Slave2Master::ConductionDataMessage>();
             }
             break;
 
@@ -350,7 +351,7 @@ bool ProtocolProcessor::parseSlave2MasterPacket(
     return message->deserialize(parseBuffer_);
 }
 
-bool ProtocolProcessor::parseSlave2BackendPacket(
+bool ProtocolProcessor::parseSlave2MasterPacket(
     const std::vector<uint8_t> &payload, uint32_t &slaveId,
     DeviceStatus &deviceStatus, std::unique_ptr<Message> &message) {
     if (payload.size() < 7) return false;
@@ -359,13 +360,14 @@ bool ProtocolProcessor::parseSlave2BackendPacket(
     slaveId = readUint32LE(payload, 1);
     deviceStatus.fromUint16(readUint16LE(payload, 5));
 
-    message = createMessage(PacketId::SLAVE_TO_BACKEND, messageId);
+    message = createMessage(PacketId::SLAVE_TO_MASTER, messageId);
     if (!message) return false;
 
     // 使用可复用的buffer，避免创建临时vector
     parseBuffer_.assign(payload.begin() + 7, payload.end());
     return message->deserialize(parseBuffer_);
 }
+
 
 bool ProtocolProcessor::parseBackend2MasterPacket(
     const std::vector<uint8_t> &payload, std::unique_ptr<Message> &message) {
@@ -428,12 +430,12 @@ std::vector<std::vector<uint8_t>> ProtocolProcessor::packSlave2MasterMessage(
     return fragmentFrame(completeFrame);
 }
 
-std::vector<std::vector<uint8_t>> ProtocolProcessor::packSlave2BackendMessage(
-    uint32_t slaveId, const DeviceStatus &deviceStatus,
-    const Message &message) {
-    // 首先生成单个完整帧
-    auto completeFrame =
-        packSlave2BackendMessageSingle(slaveId, deviceStatus, message, 0, 0);
+std::vector<std::vector<uint8_t>> ProtocolProcessor::packSlave2MasterMessage(
+    uint32_t slaveId, const DeviceStatus &deviceStatus, const Message &message) {
+    // elog_i("ProtocolProcessor", "packSlave2MasterMessage called - SlaveId: 0x%08X, MessageId: 0x%02X",
+    //        slaveId, message.getMessageId());
+    // 首先生成单个完整帧（带DeviceStatus）
+    auto completeFrame = packSlave2MasterMessageSingle(slaveId, deviceStatus, message, 0, 0);
 
     // 检查是否需要分片
     if (completeFrame.size() <= mtu_) {
@@ -441,9 +443,10 @@ std::vector<std::vector<uint8_t>> ProtocolProcessor::packSlave2BackendMessage(
         return {completeFrame};
     }
 
-    // 需要分片
-    return fragmentFrame(completeFrame);
+    // 需要分片，对于COND_DATA_MSG，需要特殊处理以确保每包都包含ID+DeviceStatus
+    return fragmentFrameWithStatus(completeFrame, slaveId, deviceStatus);
 }
+
 
 std::vector<std::vector<uint8_t>> ProtocolProcessor::packBackend2MasterMessage(
     const Message &message) {
@@ -554,6 +557,156 @@ std::vector<std::vector<uint8_t>> ProtocolProcessor::fragmentFrame(
 
     elog_v("ProtocolProcessor",
            "Fragmentation completed, generated %d fragments", fragments.size());
+    return fragments;
+}
+
+// 分片功能实现（带DeviceStatus，用于COND_DATA_MSG）
+std::vector<std::vector<uint8_t>> ProtocolProcessor::fragmentFrameWithStatus(
+    const std::vector<uint8_t> &frameData, uint32_t slaveId,
+    const DeviceStatus &deviceStatus) {
+    std::vector<std::vector<uint8_t>> fragments;
+
+    elog_v("ProtocolProcessor",
+           "Starting frame fragmentation with status, original frame size: %d bytes, MTU: %d",
+           frameData.size(), mtu_);
+
+    if (frameData.size() < 7) {    // Minimum frame header is 7 bytes
+        elog_w("ProtocolProcessor",
+               "Frame data too small for fragmentation: %d bytes",
+               frameData.size());
+        return {frameData};
+    }
+
+    // Parse original frame header
+    uint8_t packetId = frameData[2];
+    elog_v("ProtocolProcessor", "Original frame PacketId: 0x%02X", packetId);
+
+    // Get original payload (starting from 7th byte)
+    fragmentBuffer_.assign(frameData.begin() + 7, frameData.end());
+    elog_v("ProtocolProcessor", "Original payload size: %d bytes",
+           fragmentBuffer_.size());
+
+    // 对于COND_DATA_MSG，payload结构是: messageId(1) + slaveId(4) + deviceStatus(2) + conductionData(variable)
+    if (fragmentBuffer_.size() < 7) {
+        elog_e("ProtocolProcessor", "Payload too small for COND_DATA_MSG");
+        return {frameData};
+    }
+
+    // 从原始payload中提取 messageId, slaveId, deviceStatus（确保使用原始帧中的值）
+    uint8_t messageId = fragmentBuffer_[0];
+    uint32_t extractedSlaveId = readUint32LE(fragmentBuffer_, 1);
+    DeviceStatus extractedDeviceStatus;
+    extractedDeviceStatus.fromUint16(readUint16LE(fragmentBuffer_, 5));
+    
+    // elog_i("ProtocolProcessor", "FragmentFrameWithStatus - Extracted from payload:");
+    // elog_i("ProtocolProcessor", "  MessageId: 0x%02X (expected: 0x53)", messageId);
+    // elog_i("ProtocolProcessor", "  SlaveId: 0x%08X (bytes: [0x%02X 0x%02X 0x%02X 0x%02X])",
+    //        extractedSlaveId, fragmentBuffer_[1], fragmentBuffer_[2], fragmentBuffer_[3], fragmentBuffer_[4]);
+    // elog_i("ProtocolProcessor", "  DeviceStatus: 0x%04X (bytes: [0x%02X 0x%02X])",
+    //        extractedDeviceStatus.toUint16(), fragmentBuffer_[5], fragmentBuffer_[6]);
+    
+    // 提取导通数据部分（跳过 messageId + slaveId + deviceStatus = 7 bytes）
+    size_t conductionDataStart = 7;
+    size_t conductionDataSize = fragmentBuffer_.size() - conductionDataStart;
+
+    elog_v("ProtocolProcessor", "Conduction data size: %d bytes", conductionDataSize);
+
+    // Calculate effective payload size per fragment (MTU - 7 bytes frame header)
+    // 每个分片的payload需要包含: messageId(1) + slaveId(4) + deviceStatus(2) + 部分conductionData
+    size_t fragmentPayloadSize = mtu_ - 7;
+    size_t conductionDataPerFragment = fragmentPayloadSize - 7; // 减去固定的7字节头部
+
+    if (conductionDataPerFragment <= 0) {
+        elog_e("ProtocolProcessor", "MTU too small for COND_DATA_MSG fragmentation");
+        return {frameData};
+    }
+
+    // Calculate how many fragments are needed
+    uint8_t totalFragments = static_cast<uint8_t>(
+        (conductionDataSize + conductionDataPerFragment - 1) / conductionDataPerFragment);
+    elog_v("ProtocolProcessor", "Total fragments needed: %d", totalFragments);
+
+    // Generate each fragment
+    for (uint8_t i = 0; i < totalFragments; ++i) {
+        packFrameBuffer_.clear();
+        packFrameBuffer_.reserve(7 + fragmentPayloadSize);
+
+        // Add frame header (7 bytes)
+        packFrameBuffer_.push_back(FRAME_DELIMITER_1);
+        packFrameBuffer_.push_back(FRAME_DELIMITER_2);
+        packFrameBuffer_.push_back(packetId);
+        packFrameBuffer_.push_back(i);    // Fragment sequence number
+        packFrameBuffer_.push_back(
+            (i == totalFragments - 1) ? 0 : 1);    // moreFragmentsFlag
+        packFrameBuffer_.push_back(0);    // Packet length low byte (will be set later)
+        packFrameBuffer_.push_back(0);    // Packet length high byte (will be set later)
+
+        // Calculate conduction data for this fragment
+        size_t startPos = i * conductionDataPerFragment;
+        size_t endPos = std::min(startPos + conductionDataPerFragment, conductionDataSize);
+        size_t fragmentConductionSize = endPos - startPos;
+        (void)fragmentConductionSize;  // Used in logging below
+
+        // Build payload: messageId + slaveId + deviceStatus + fragment conduction data
+        // 使用从原始payload中提取的值，确保一致性
+        if (i == 0) {
+            // elog_i("ProtocolProcessor", "Fragment #%d - Before writing payload: buffer size=%d (should be 7 for frame header)",
+            //        i, packFrameBuffer_.size());
+            elog_i("ProtocolProcessor", "Fragment #%d - Writing: messageId=0x%02X, extractedSlaveId=0x%08X, deviceStatus=0x%04X",
+                   i, messageId, extractedSlaveId, extractedDeviceStatus.toUint16());
+        }
+        
+        packFrameBuffer_.push_back(messageId);
+        
+        // if (i == 0) {
+        //     elog_i("ProtocolProcessor", "Fragment #%d - After push messageId: buffer size=%d, pos[7]=0x%02X",
+        //            i, packFrameBuffer_.size(), packFrameBuffer_[7]);
+        // }
+        
+        writeUint32LE(packFrameBuffer_, extractedSlaveId);
+        
+        // if (i == 0) {
+        //     elog_i("ProtocolProcessor", "Fragment #%d - After writeUint32LE: buffer size=%d, pos[8-11]=[0x%02X 0x%02X 0x%02X 0x%02X]",
+        //            i, packFrameBuffer_.size(),
+        //            packFrameBuffer_[8], packFrameBuffer_[9], packFrameBuffer_[10], packFrameBuffer_[11]);
+        // }
+        
+        writeUint16LE(packFrameBuffer_, extractedDeviceStatus.toUint16());
+        
+        // if (i == 0) {
+        //     elog_i("ProtocolProcessor", "Fragment #%d - After writeUint16LE: buffer size=%d, pos[12-13]=[0x%02X 0x%02X]",
+        //            i, packFrameBuffer_.size(), packFrameBuffer_[12], packFrameBuffer_[13]);
+        // }
+
+        // Add fragment conduction data
+        packFrameBuffer_.insert(packFrameBuffer_.end(),
+                                fragmentBuffer_.begin() + conductionDataStart + startPos,
+                                fragmentBuffer_.begin() + conductionDataStart + endPos);
+
+        // Set length field in frame header (payload length = total size - 7 bytes frame header)
+        uint16_t payloadLength = static_cast<uint16_t>(packFrameBuffer_.size() - 7);
+        packFrameBuffer_[5] = payloadLength & 0xFF;
+        packFrameBuffer_[6] = (payloadLength >> 8) & 0xFF;
+
+        // 验证最终数据包的关键字段（仅在第一个分片时输出）
+        // if (i == 0 && packFrameBuffer_.size() >= 15) {
+        //     elog_i("ProtocolProcessor", "Fragment #%d - Final frame bytes[7-13]: [0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X]",
+        //            i, packFrameBuffer_[7], packFrameBuffer_[8], packFrameBuffer_[9], packFrameBuffer_[10],
+        //            packFrameBuffer_[11], packFrameBuffer_[12], packFrameBuffer_[13]);
+        // }
+
+        // elog_v("ProtocolProcessor",
+        //        "Fragment #%d/%d, sequence=%d, more_fragments=%d, "
+        //        "fragment_size=%d, payload_size=%d, conduction_data_size=%d",
+        //        i, totalFragments - 1, i, (i == totalFragments - 1) ? 0 : 1,
+        //        packFrameBuffer_.size(), payloadLength, fragmentConductionSize);
+
+        // 创建副本添加到结果中
+        fragments.push_back(packFrameBuffer_);
+    }
+
+    elog_v("ProtocolProcessor",
+           "Fragmentation with status completed, generated %d fragments", fragments.size());
     return fragments;
 }
 
@@ -740,6 +893,8 @@ bool ProtocolProcessor::reassembleFragments(
 
     uint8_t messageId = frame.payload[0];
     uint32_t sourceId = readUint32LE(frame.payload, 1);    // 跳过MessageId
+    (void)messageId;  // Used in logging below
+    (void)sourceId;   // Used in logging below
     uint64_t fragmentId = generateFragmentId(frame.packetId);
 
     elog_v("ProtocolProcessor",

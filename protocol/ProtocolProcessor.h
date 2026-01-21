@@ -42,10 +42,10 @@ class ProtocolProcessor {
     std::vector<std::vector<uint8_t>>
     packSlave2MasterMessage(uint32_t slaveId, const Message &message);
 
-    // 打包Slave2Backend消息 (支持自动分片)
+    // 打包Slave2Master消息 (支持自动分片，带DeviceStatus，用于COND_DATA_MSG)
     std::vector<std::vector<uint8_t>>
-    packSlave2BackendMessage(uint32_t slaveId, const DeviceStatus &deviceStatus,
-                             const Message &message);
+    packSlave2MasterMessage(uint32_t slaveId, const DeviceStatus &deviceStatus,
+                            const Message &message);
 
     // 打包Backend2Master消息 (支持自动分片)
     std::vector<std::vector<uint8_t>>
@@ -65,10 +65,12 @@ class ProtocolProcessor {
                                   uint8_t fragmentsSequence = 0,
                                   uint8_t moreFragmentsFlag = 0);
 
-    std::vector<uint8_t> packSlave2BackendMessageSingle(
-        uint32_t slaveId, const DeviceStatus &deviceStatus,
-        const Message &message, uint8_t fragmentsSequence = 0,
-        uint8_t moreFragmentsFlag = 0);
+    // 打包Slave2Master消息单帧（带DeviceStatus，用于COND_DATA_MSG）
+    std::vector<uint8_t>
+    packSlave2MasterMessageSingle(uint32_t slaveId, const DeviceStatus &deviceStatus,
+                                  const Message &message,
+                                  uint8_t fragmentsSequence = 0,
+                                  uint8_t moreFragmentsFlag = 0);
 
     std::vector<uint8_t>
     packBackend2MasterMessageSingle(const Message &message,
@@ -106,10 +108,10 @@ class ProtocolProcessor {
                                  uint32_t &slaveId,
                                  std::unique_ptr<Message> &message);
 
-    // 解析Slave2Backend包
-    bool parseSlave2BackendPacket(const std::vector<uint8_t> &payload,
-                                  uint32_t &slaveId, DeviceStatus &deviceStatus,
-                                  std::unique_ptr<Message> &message);
+    // 解析Slave2Master包（带DeviceStatus，用于COND_DATA_MSG）
+    bool parseSlave2MasterPacket(const std::vector<uint8_t> &payload,
+                                 uint32_t &slaveId, DeviceStatus &deviceStatus,
+                                 std::unique_ptr<Message> &message);
 
     // 解析Backend2Master包
     bool parseBackend2MasterPacket(const std::vector<uint8_t> &payload,
@@ -123,6 +125,11 @@ class ProtocolProcessor {
     // 帧分片
     std::vector<std::vector<uint8_t>>
     fragmentFrame(const std::vector<uint8_t> &frameData);
+
+    // 帧分片（带DeviceStatus，用于COND_DATA_MSG，确保每包都包含ID+DeviceStatus）
+    std::vector<std::vector<uint8_t>>
+    fragmentFrameWithStatus(const std::vector<uint8_t> &frameData,
+                           uint32_t slaveId, const DeviceStatus &deviceStatus);
 
     // 分片重组
     bool reassembleFragments(const Frame &frame,

@@ -90,6 +90,20 @@ bool HeartbeatMessage::deserialize(const std::vector<uint8_t> &data) {
     return true;
 }
 
+// ConductionDataMessage 实现
+std::vector<uint8_t> ConductionDataMessage::serialize() const {
+    auto& result = getReusableVector();
+    // 直接序列化导通数据，不需要长度字段（长度从包长度推算）
+    result.insert(result.end(), conductionData.begin(), conductionData.end());
+    return result; // 返回副本，可复用的 vector 会在下次调用时被清空
+}
+
+bool ConductionDataMessage::deserialize(const std::vector<uint8_t> &data) {
+    // 直接反序列化所有数据为导通数据
+    conductionData = data;
+    return true;
+}
+
 
 }    // namespace Slave2Master
 }    // namespace WhtsProtocol

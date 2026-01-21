@@ -772,22 +772,27 @@ void SlaveDevice::DataCollectionTask::sendDataToBackend() const
     // 如果正在进行分片发送，发送下一个分片
     if (parent.m_isFragmentSendingInProgress)
     {
+        elog_i(TAG, "Fragment sending in progress - currentIndex: %d, totalFragments: %d",
+               parent.m_currentFragmentIndex, parent.m_pendingFragments.size());
+
         // 检查是否还有待发送的分片
         if (parent.m_currentFragmentIndex < parent.m_pendingFragments.size())
         {
             // 发送当前分片
             const auto &fragment = parent.m_pendingFragments[parent.m_currentFragmentIndex];
+            elog_i(TAG, "Sending fragment %d/%d (size: %d bytes)", parent.m_currentFragmentIndex + 1,
+                   parent.m_pendingFragments.size(), fragment.size());
             if (parent.send(fragment) == 0)
             {
-                elog_v(TAG, "Sent fragment %d/%d to backend (size: %d bytes)", parent.m_currentFragmentIndex + 1,
-                       parent.m_pendingFragments.size(), fragment.size());
+                elog_i(TAG, "Fragment %d/%d sent successfully", parent.m_currentFragmentIndex + 1,
+                       parent.m_pendingFragments.size());
 
                 parent.m_currentFragmentIndex++;
 
                 // 检查是否所有分片都已发送完成
                 if (parent.m_currentFragmentIndex >= parent.m_pendingFragments.size())
                 {
-                    elog_v(TAG, "All fragments (%d) successfully sent to backend", parent.m_pendingFragments.size());
+                    elog_i(TAG, "All fragments (%d) successfully sent to backend", parent.m_pendingFragments.size());
 
                     // 清空分片发送状态
                     parent.m_pendingFragments.clear();
@@ -828,21 +833,24 @@ void SlaveDevice::DataCollectionTask::sendDataToBackend() const
 
     // 根据当前配置创建相应的数据消息
     // 这里假设是导通检测模式，实际应该根据配置的模式来决定
-    auto dataMsg = std::make_unique<Slave2Backend::ConductionDataMessage>();
+    auto dataMsg = std::make_unique<Slave2Master::ConductionDataMessage>();
 
     // 使用缓存的数据
     dataMsg->conductionData = parent.lastCollectionData;
-    dataMsg->conductionLength = dataMsg->conductionData.size();
 
-    if (dataMsg->conductionLength > 0)
+    if (dataMsg->conductionData.size() > 0)
     {
         // Print total bytes of conduction test data
         // elog_i(TAG, "=== Conduction Data Upload Statistics ===");
-        elog_i(TAG, "Total conduction test data bytes: %d bytes", dataMsg->conductionLength);
+        elog_i(TAG, "Total conduction test data bytes: %d bytes", dataMsg->conductionData.size());
 
-        // Use protocol processor to pack message in Slave2Backend format (auto-fragmentation)
+        // Use protocol processor to pack message in Slave2Master format (auto-fragmentation)
+        // COND_DATA_MSG 需要 DeviceStatus，使用带 DeviceStatus 的打包函数
+        // elog_i(TAG,
+        //        "Preparing to pack COND_DATA_MSG - DeviceId: 0x%08X, DeviceStatus: 0x%04X, ConductionDataSize: %d
+        //        bytes", parent.m_deviceId, parent.m_deviceStatus.toUint16(), dataMsg->conductionData.size());
         const auto packedData =
-            parent.m_processor.packSlave2BackendMessage(parent.m_deviceId, parent.m_deviceStatus, *dataMsg);
+            parent.m_processor.packSlave2MasterMessage(parent.m_deviceId, parent.m_deviceStatus, *dataMsg);
 
         // Calculate statistics
         size_t totalFrameBytes = 0;         // Total bytes of all frames (including frame headers)

@@ -15,8 +15,7 @@ enum class PacketId : uint8_t {
     MASTER_TO_SLAVE = 0x00,
     SLAVE_TO_MASTER = 0x01,
     BACKEND_TO_MASTER = 0x02,
-    MASTER_TO_BACKEND = 0x03,
-    SLAVE_TO_BACKEND = 0x04
+    MASTER_TO_BACKEND = 0x03
 };
 
 // Master2Slave Message ID 枚举
@@ -33,6 +32,7 @@ enum class Slave2MasterMessageId : uint8_t {
     JOIN_REQUEST_MSG = 0x50,
     SHORT_ID_CONFIRM_MSG = 0x51,
     HEARTBEAT_MSG = 0x52,
+    COND_DATA_MSG = 0x53,
 };
 
 // Backend2Master Message ID 枚举
@@ -55,13 +55,6 @@ enum class Master2BackendMessageId : uint8_t {
     PING_RES_MSG = 0x04,
     DEVICE_LIST_RSP_MSG = 0x05,
     INTERVAL_CFG_RSP_MSG = 0x06
-};
-
-// Slave2Backend Message ID 枚举
-enum class Slave2BackendMessageId : uint8_t {
-    CONDUCTION_DATA_MSG = 0x00,
-    RESISTANCE_DATA_MSG = 0x01,
-    CLIP_DATA_MSG = 0x02
 };
 
 }    // namespace WhtsProtocol

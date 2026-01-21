@@ -6,7 +6,6 @@ add_library(ProtocolMessages STATIC
     Slave2Master.cpp
     Backend2Master.cpp
     Master2Backend.cpp
-    Slave2Backend.cpp
 )
 
 # Set include directories
