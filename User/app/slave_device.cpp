@@ -624,7 +624,7 @@ void SlaveDevice::run() const
         TickType_t currentTime = xTaskGetTickCount();
         if ((currentTime - lastStackPrintTime) >= stackPrintInterval)
         {
-            printSystemStackInfo();
+            // printSystemStackInfo();
             lastStackPrintTime = currentTime;
         }
 
