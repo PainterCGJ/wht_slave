@@ -418,7 +418,7 @@ void vPortEnterCritical( void )
 /*-----------------------------------------------------------*/
 
 void vPortExitCritical( void )
-{
+{	
 	configASSERT( uxCriticalNesting );
 	uxCriticalNesting--;
 	if( uxCriticalNesting == 0 )

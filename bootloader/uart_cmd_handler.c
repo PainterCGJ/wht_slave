@@ -33,6 +33,7 @@ static const char *TAG = "uart_cmd";
 static char uart_cmd_buffer[UART_CMD_BUFFER_SIZE];
 static uint8_t uart_cmd_index = 0;
  uint8_t uart_rx_char;
+static volatile bool cmd_ready_flag = false;  // 标志位：命令已准备好处理
 
 /* RS485数据接收队列 */
 #define RS485_RX_QUEUE_SIZE 1024
@@ -137,8 +138,16 @@ void uart_cmd_handler_task(void* argument) {
     elog_d(TAG, "UART command handler task started");
 
     for (;;) {
+        // 检查是否有命令需要处理（在任务上下文中安全调用）
+        if (cmd_ready_flag) {
+            cmd_ready_flag = false;
+            process_uart_command(uart_cmd_buffer);
+            uart_cmd_index = 0;
+            memset(uart_cmd_buffer, 0, sizeof(uart_cmd_buffer));
+        }
+        
         // 定期检查，避免过度占用CPU
-        osDelay(100);
+        osDelay(10);  // 减少延迟，更快响应命令
     }
 }
 
@@ -233,23 +242,26 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef* huart) {
         } else {
             // 正常的命令处理逻辑
             if (uart_rx_char == '\r' || uart_rx_char == '\n') {
-                // 接收到回车或换行，处理命令
+                // 接收到回车或换行，设置标志位让任务处理命令
+                // 注意：process_uart_command()会调用elog，不是中断安全的
+                // 改为设置标志位，让任务来处理
                 if (uart_cmd_index > 0) {
                     uart_cmd_buffer[uart_cmd_index] = '\0';
-                    process_uart_command(uart_cmd_buffer);
-                    uart_cmd_index = 0;
-                    memset(uart_cmd_buffer, 0, sizeof(uart_cmd_buffer));
+                    // 设置命令处理标志位（需要在任务中处理）
+                    cmd_ready_flag = true;
+                    // uart_cmd_index会在任务处理完后清零
                 }
             } else if (uart_rx_char == '\b' || uart_rx_char == 127) {
                 // 退格键处理
+                // 注意：HAL_UART_Transmit()会阻塞等待，不是中断安全的
+                // 移除中断中的UART发送，改为在任务中处理
                 if (uart_cmd_index > 0) {
                     uart_cmd_index--;
                     uart_cmd_buffer[uart_cmd_index] = '\0';
-                    // 发送退格、空格、退格来清除终端上的字符
-                    RS485_TX_EN();
-                    HAL_UART_Transmit(&RS485_UART, (uint8_t*)"\b \b", 3,
-                                      HAL_MAX_DELAY);
-                    RS485_RX_EN();
+                    // RS485_TX_EN();
+                    // HAL_UART_Transmit(&RS485_UART, (uint8_t*)"\b \b", 3,
+                    //                   HAL_MAX_DELAY);
+                    // RS485_RX_EN();
                 }
             } else if (uart_cmd_index < (UART_CMD_BUFFER_SIZE - 1)) {
                 // 普通字符，添加到缓冲区

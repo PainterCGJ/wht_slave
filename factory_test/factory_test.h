@@ -173,7 +173,8 @@ extern const uint8_t FACTORY_TEST_ENTRY_CMD[FACTORY_TEST_ENTRY_CMD_LEN];
 /* Function prototypes -------------------------------------------------------*/
 void factory_test_init(void);
 void factory_test_start_entry_detection(void);  // Start entry command detection
-bool factory_test_process_entry_byte(uint8_t data);  // Process byte for entry detection
+bool factory_test_process_entry_byte(uint8_t data);  // Process byte for entry detection (interrupt-safe)
+void factory_test_set_entry_response_flag(void);  // Set entry response flag (interrupt-safe)
 bool factory_test_blocking_check_entry(void);   // Blocking check for entry command (1 second)
 void factory_test_enter_mode(void);
 void factory_test_exit_mode(void);

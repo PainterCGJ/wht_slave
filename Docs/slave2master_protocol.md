@@ -9,30 +9,36 @@ Slave2Master协议用于从机（Slave）向主机（Master）发送消息。该
 - **帧分隔符1**: `0xAB`
 - **帧分隔符2**: `0xCD`
 - **Packet ID**: `0x01` (SLAVE_TO_MASTER)
+- **默认MTU**: 100字节
 
 ## 3. 帧结构
 
 ### 3.1 完整帧格式
 
+所有Slave2Master消息均采用统一的帧格式，帧头固定为7字节：
+
 ```
-+------------------+------------------+------------------+------------------+------------------+------------------+------------------+
-| Delimiter1 (1B)  | Delimiter2 (1B)  | Packet ID (1B)   | Frag Seq (1B)    | More Frag (1B)   | Packet Len (2B)  | Payload (N B)    |
-+------------------+------------------+------------------+------------------+------------------+------------------+------------------+
-| 0xAB             | 0xCD             | 0x01             | 0-255            | 0/1              | Little Endian    | Variable         |
-+------------------+------------------+------------------+------------------+------------------+------------------+------------------+
++------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+
+| Delimiter1 (1B)  | Delimiter2 (1B)  | Packet ID (1B)   | Frag Seq (1B)    | More Frag (1B)   | Length Low (1B)  | Length High (1B) | Payload (N B)    |
++------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+
+| 0xAB             | 0xCD             | 0x01             | 0-255            | 0/1              | Little Endian    | Little Endian    | Variable         |
++------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+
 ```
 
 ### 3.2 字段说明
 
-| 字段名 | 长度 | 说明 |
-|--------|------|------|
-| Delimiter1 | 1字节 | 固定值 `0xAB`，帧起始标识 |
-| Delimiter2 | 1字节 | 固定值 `0xCD`，帧起始标识 |
-| Packet ID | 1字节 | 固定值 `0x01`，标识为Slave2Master消息 |
-| Fragments Sequence | 1字节 | 分片序列号，用于分片重组。单帧时为0 |
-| More Fragments Flag | 1字节 | 更多分片标志：`0`=最后一帧，`1`=还有后续分片 |
-| Packet Length | 2字节 | 载荷长度（小端序），不包括帧头7字节 |
-| Payload | N字节 | 载荷数据，具体格式见下文 |
+| 字段名 | 位置 | 长度 | 说明 |
+|--------|------|------|------|
+| Delimiter1 | 0 | 1字节 | 固定值 `0xAB`，帧起始标识 |
+| Delimiter2 | 1 | 1字节 | 固定值 `0xCD`，帧起始标识 |
+| Packet ID | 2 | 1字节 | 固定值 `0x01`，标识为Slave2Master消息 |
+| Fragments Sequence | 3 | 1字节 | 分片序列号，用于分片重组。单帧时为0 |
+| More Fragments Flag | 4 | 1字节 | 更多分片标志：`0`=最后一帧，`1`=还有后续分片 |
+| Packet Length Low | 5 | 1字节 | 载荷长度低字节（小端序），不包括帧头7字节 |
+| Packet Length High | 6 | 1字节 | 载荷长度高字节（小端序） |
+| Payload | 7+ | N字节 | 载荷数据，具体格式见下文 |
+
+**重要说明**：帧头总长度固定为7字节，Packet Length字段使用小端序表示载荷长度（不包括帧头）。
 
 ## 4. 载荷结构
 
@@ -42,7 +48,7 @@ Slave2Master协议用于从机（Slave）向主机（Master）发送消息。该
 
 ```
 +------------------+------------------+------------------+
-| Message ID (1B)  | Slave ID (4B)   | Message Data (N)|
+| Message ID (1B)  | Slave ID (4B)    | Message Data (N) |
 +------------------+------------------+------------------+
 | 0x30-0x52        | Little Endian    | Variable         |
 +------------------+------------------+------------------+
@@ -58,11 +64,11 @@ Slave2Master协议用于从机（Slave）向主机（Master）发送消息。该
 对于导通数据消息（COND_DATA_MSG），载荷格式为：
 
 ```
-+------------------+------------------+------------------+------------------+------------------+
-| Message ID (1B)  | Slave ID (4B)   | Device Status(2B)| Conduction Data  |
-+------------------+------------------+------------------+------------------+------------------+
-| 0x53             | Little Endian   | Little Endian    | Variable         |
-+------------------+------------------+------------------+------------------+------------------+
++------------------+------------------+------------------+------------------+
+| Message ID (1B)  | Slave ID (4B)    | Device Status(2B)| Conduction Data  |
++------------------+------------------+------------------+------------------+
+| 0x53             | Little Endian    | Little Endian    | Variable         |
++------------------+------------------+------------------+------------------+
 ```
 
 **字段说明**：
@@ -102,14 +108,14 @@ Slave2Master协议用于从机（Slave）向主机（Master）发送消息。该
 
 ### 6.1 消息类型枚举
 
-| Message ID | 消息类型 | 说明 |
-|------------|----------|------|
-| 0x30 | RST_RSP_MSG | 复位响应消息 |
-| 0x41 | PING_RSP_MSG | Ping响应消息 |
-| 0x50 | JOIN_REQUEST_MSG | 入网请求消息 |
-| 0x51 | SHORT_ID_CONFIRM_MSG | 短ID确认消息 |
-| 0x52 | HEARTBEAT_MSG | 心跳消息 |
-| 0x53 | COND_DATA_MSG | 导通数据消息 |
+| Message ID | 消息类型 | 说明 | 状态 |
+|------------|----------|------|------|
+| 0x30 | RST_RSP_MSG | 复位响应消息 | 已实现 |
+| 0x41 | PING_RSP_MSG | Ping响应消息 | 已实现 |
+| 0x50 | JOIN_REQUEST_MSG | 入网请求消息 | 已禁用 |
+| 0x51 | SHORT_ID_CONFIRM_MSG | 短ID确认消息 | 已实现 |
+| 0x52 | HEARTBEAT_MSG | 心跳消息 | 已禁用 |
+| 0x53 | COND_DATA_MSG | 导通数据消息 | **已实现（主要功能）** |
 
 ## 7. 消息详细格式
 
@@ -142,34 +148,39 @@ Message ID
 
 **消息数据格式**：
 ```
-+------------------+------------------+------------------+
-| Sequence (2B)   | Timestamp (4B)   |
-+------------------+------------------+------------------+
++------------------+------------------+
+| Sequence (2B)    | Timestamp (4B)   |
++------------------+------------------+
 | Little Endian    | Little Endian    |
-+------------------+------------------+------------------+
++------------------+------------------+
 ```
 
 **字段说明**：
 - `Sequence` (2字节，小端序): 序列号
 - `Timestamp` (4字节，小端序): 时间戳
 
-### 7.3 入网请求消息 (JOIN_REQUEST_MSG)
+### 7.3 入网请求消息 (JOIN_REQUEST_MSG) - 已禁用
 
 **Message ID**: `0x50`
 
 **消息数据格式**：
 ```
 +------------------+------------------+------------------+------------------+
-| Version Major(1B)| Version Minor(1B)| Version Patch(2B)|
+| Device ID (4B)   | Ver Major (1B)   | Ver Minor (1B)   | Ver Patch (2B)   |
 +------------------+------------------+------------------+------------------+
-|                  |                  | Little Endian    |
+| Little Endian    |                  |                  | Little Endian    |
 +------------------+------------------+------------------+------------------+
 ```
 
 **字段说明**：
+- `Device ID` (4字节，小端序): 设备ID
 - `Version Major` (1字节): 主版本号
 - `Version Minor` (1字节): 次版本号
 - `Version Patch` (2字节，小端序): 补丁版本号
+
+**注意**：
+- 当前系统中入网请求功能已被禁用，此消息类型保留但未使用
+- 代码实现中Device ID字段与外层Slave ID存在冗余，这是历史遗留问题
 
 ### 7.4 短ID确认消息 (SHORT_ID_CONFIRM_MSG)
 
@@ -186,7 +197,7 @@ Message ID
 - `Status` (1字节): 状态
 - `Short ID` (1字节): 短ID
 
-### 7.5 心跳消息 (HEARTBEAT_MSG)
+### 7.5 心跳消息 (HEARTBEAT_MSG) - 已禁用
 
 **Message ID**: `0x52`
 
@@ -200,33 +211,36 @@ Message ID
 **字段说明**：
 - `Battery Level` (1字节): 电池电量百分比 (0-100%)
 
-### 7.6 导通数据消息 (COND_DATA_MSG)
+**注意**：当前系统中心跳功能已被禁用。
+
+### 7.6 导通数据消息 (COND_DATA_MSG) - 主要功能
 
 **Message ID**: `0x53`
 
 **消息数据格式**：
 ```
-+------------------+------------------+------------------+
++------------------+------------------+
 | Device Status(2B)| Conduction Data  |
-+------------------+------------------+------------------+
-| Little Endian     | N bytes         |
-+------------------+------------------+------------------+
++------------------+------------------+
+| Little Endian    | N bytes          |
++------------------+------------------+
 ```
 
 **字段说明**：
 - `Device Status` (2字节，小端序): 设备状态，位域定义见第5节
 - `Conduction Data` (N字节): 导通数据内容，**不包含长度字段**，长度从包长度推算
 
-**完整载荷示例**（假设 Slave ID = 0x00000001，Device Status = 0x0001，Conduction Data = [0x01, 0x02, 0x03, 0x04]）：
+**完整载荷示例**（假设 Slave ID = 0x02307615，Device Status = 0x0008，Conduction Data = [0x01, 0x02, 0x03, 0x04]）：
 ```
-53 01 00 00 00 01 00 01 02 03 04
+53 15 76 30 02 08 00 01 02 03 04
 │  └─────────┘  └─────┘  └─────────────┘
 │  Slave ID     Status    Conduction Data
 │
-Message ID
+Message ID (0x53)
 ```
 
-**注意**：导通数据长度 = Packet Length - 7字节（Message ID + Slave ID + Device Status）
+**导通数据长度计算**：
+- 导通数据长度 = Packet Length - 7字节（Message ID + Slave ID + Device Status）
 
 ## 8. 完整帧示例
 
@@ -234,56 +248,73 @@ Message ID
 
 假设：
 - Slave ID = `0x12345678`
-- Battery Level = `50`
+- Battery Level = `80` (0x50)
 
 **完整帧**：
 ```
-AB CD 01 00 00 06 52 78 56 34 12 32
-│  │  │  │  │  │  │  └─────────┘  │
-│  │  │  │  │  │  │  Slave ID      Battery Level
-│  │  │  │  │  │  │
-│  │  │  │  │  │  Message ID (0x52)
-│  │  │  │  │  │
-│  │  │  │  │  Packet Length (6 bytes)
+AB CD 01 00 00 06 00 52 78 56 34 12 50
+│  │  │  │  │  └────┘  │  └─────────┘  │
+│  │  │  │  │  Length  │  Slave ID     Battery
+│  │  │  │  │          │
+│  │  │  │  │          Message ID (0x52)
 │  │  │  │  │
-│  │  │  │  More Fragments Flag
+│  │  │  │  More Fragments Flag (0 = 最后一帧)
 │  │  │  │
-│  │  │  Fragments Sequence
+│  │  │  Fragments Sequence (0)
 │  │  │
-│  │  Packet ID (SLAVE_TO_MASTER)
+│  │  Packet ID (SLAVE_TO_MASTER = 0x01)
 │  │
-│  Delimiter2
+│  Delimiter2 (0xCD)
 │
-Delimiter1
+Delimiter1 (0xAB)
 ```
+
+**字节解析**：
+- 位置 0-1: 帧分隔符 `AB CD`
+- 位置 2: Packet ID = `01`
+- 位置 3: Fragments Sequence = `00`
+- 位置 4: More Fragments Flag = `00`
+- 位置 5-6: Packet Length = `06 00` (小端序，值=6)
+- 位置 7: Message ID = `52`
+- 位置 8-11: Slave ID = `78 56 34 12` (小端序，值=0x12345678)
+- 位置 12: Battery Level = `50` (80%)
 
 ### 8.2 导通数据消息完整帧（单帧）
 
 假设：
-- Slave ID = `0x12345678`
-- Device Status = `0x0005` (clrSensor=1, pressureSensor=1)
-- Conduction Data = `[0xAA, 0xBB, 0xCC]`
+- Slave ID = `0x02307615`
+- Device Status = `0x0008` (batteryLowAlarm=1)
+- Conduction Data = `[0xAA, 0xBB, 0xCC]` (3字节)
 
 **完整帧**：
 ```
-AB CD 01 00 00 0A 53 78 56 34 12 05 00 AA BB CC
-│  │  │  │  │  │  │  └─────────┘  └─────┘  └─────┘
-│  │  │  │  │  │  │  Slave ID      Status   Data
-│  │  │  │  │  │  │
-│  │  │  │  │  │  Message ID (0x53)
-│  │  │  │  │  │
-│  │  │  │  │  Packet Length (10 bytes)
+AB CD 01 00 00 0A 00 53 15 76 30 02 08 00 AA BB CC
+│  │  │  │  │  └────┘  │  └─────────┘  └─────┘  └─────┘
+│  │  │  │  │  Length  │  Slave ID     Status   Data
+│  │  │  │  │          │
+│  │  │  │  │          Message ID (0x53)
 │  │  │  │  │
-│  │  │  │  More Fragments Flag
+│  │  │  │  More Fragments Flag (0 = 最后一帧)
 │  │  │  │
-│  │  │  Fragments Sequence
+│  │  │  Fragments Sequence (0)
 │  │  │
-│  │  Packet ID (SLAVE_TO_MASTER)
+│  │  Packet ID (SLAVE_TO_MASTER = 0x01)
 │  │
 │  Delimiter2
 │
 Delimiter1
 ```
+
+**字节解析**：
+- 位置 0-1: 帧分隔符 `AB CD`
+- 位置 2: Packet ID = `01`
+- 位置 3: Fragments Sequence = `00`
+- 位置 4: More Fragments Flag = `00`
+- 位置 5-6: Packet Length = `0A 00` (小端序，值=10)
+- 位置 7: Message ID = `53`
+- 位置 8-11: Slave ID = `15 76 30 02` (小端序，值=0x02307615)
+- 位置 12-13: Device Status = `08 00` (小端序，值=0x0008)
+- 位置 14-16: Conduction Data = `AA BB CC`
 
 ## 9. 分片机制
 
@@ -298,86 +329,87 @@ Delimiter1
    - `0`: 这是最后一个分片
    - `1`: 还有后续分片
 3. **分片超时**: 分片重组超时时间为5000毫秒
-4. **分片载荷**: 每个分片包含原始载荷的一部分，第一个分片包含完整的 Message ID + Slave ID + Message Data 的一部分
+4. **分片载荷**: 每个分片包含原始载荷的一部分
 
 ### 9.2 COND_DATA_MSG 特殊分片规则
 
 对于导通数据消息（COND_DATA_MSG），分片规则有特殊要求：
 
-1. **每包必须包含完整头部**: 每个分片的载荷都必须包含：
-   - Message ID (1字节)
-   - Slave ID (4字节)
-   - Device Status (2字节)
-   - 部分导通数据
+**关键特性**：每个分片都必须包含完整的识别信息（Message ID + Slave ID + Device Status），这样即使接收到单个分片，也能识别数据来源。
 
-2. **分片载荷结构**: 
-   ```
-   第一包: [Message ID][Slave ID][Device Status][Conduction Data Part 1]
-   第二包: [Message ID][Slave ID][Device Status][Conduction Data Part 2]
-   第三包: [Message ID][Slave ID][Device Status][Conduction Data Part 3]
-   ...
-   ```
+**分片载荷结构**：
+```
+第一包: [Message ID][Slave ID][Device Status][Conduction Data Part 1]
+第二包: [Message ID][Slave ID][Device Status][Conduction Data Part 2]
+第三包: [Message ID][Slave ID][Device Status][Conduction Data Part 3]
+...
+```
 
-3. **导通数据长度计算**: 
-   - 每包的导通数据长度 = Packet Length - 7字节（Message ID + Slave ID + Device Status）
-   - 总导通数据长度 = 所有分片的导通数据长度之和
+**导通数据长度计算**：
+- 每包的导通数据长度 = Packet Length - 7字节（Message ID + Slave ID + Device Status）
+- 总导通数据长度 = 所有分片的导通数据长度之和
 
-4. **分片示例**:
+**分片示例**：
 
 假设：
-- Slave ID = `0x12345678`
-- Device Status = `0x0005`
-- Conduction Data = `[0x01, 0x02, ..., 0xFF]` (200字节)
+- Slave ID = `0x02307615`
+- Device Status = `0x0008`
+- Conduction Data = 900字节
 - MTU = 100字节
+- 每个分片的导通数据 = 100 - 7(帧头) - 7(消息头) = 86字节
 
-**第一帧**（还有后续分片）：
+需要分片数 = ⌈900 / 86⌉ = 11个分片
+
+**第一帧**（分片0，还有后续）：
 ```
-AB CD 01 00 01 64 53 78 56 34 12 05 00 [91 bytes conduction data...]
-│  │  │  │  │  │  │  └─────────┘  └─────┘  └─────────────────────┘
-│  │  │  │  │  │  │  Slave ID      Status   Conduction Data Part 1
-│  │  │  │  │  │  │
-│  │  │  │  │  │  Message ID (0x53)
-│  │  │  │  │  │
-│  │  │  │  │  Packet Length (100 bytes)
+AB CD 01 00 01 5D 00 53 15 76 30 02 08 00 [86 bytes conduction data...]
+│  │  │  │  │  └────┘  │  └─────────┘  └─────┘  └─────────────────────┘
+│  │  │  │  │  Len=93  │  Slave ID     Status   Conduction Data Part 1
+│  │  │  │  │          │
+│  │  │  │  │          Message ID (0x53)
 │  │  │  │  │
 │  │  │  │  More Fragments Flag = 1 (还有后续)
 │  │  │  │
 │  │  │  Fragments Sequence = 0
+│  │  │
+│  │  Packet ID (0x01)
+│  │
+│  Delimiter2
+│
+Delimiter1
 ```
 
-**第二帧**（还有后续分片）：
+**第二帧**（分片1，还有后续）：
 ```
-AB CD 01 01 01 64 53 78 56 34 12 05 00 [91 bytes conduction data...]
-│  │  │  │  │  │  │  └─────────┘  └─────┘  └─────────────────────┘
-│  │  │  │  │  │  │  Slave ID      Status   Conduction Data Part 2
-│  │  │  │  │  │  │
-│  │  │  │  │  │  Message ID (0x53)
-│  │  │  │  │  │
-│  │  │  │  │  Packet Length (100 bytes)
+AB CD 01 01 01 5D 00 53 15 76 30 02 08 00 [86 bytes conduction data...]
+│  │  │  │  │  └────┘  │  └─────────┘  └─────┘  └─────────────────────┘
+│  │  │  │  │  Len=93  │  Slave ID     Status   Conduction Data Part 2
+│  │  │  │  │          │
+│  │  │  │  │          Message ID (0x53)
 │  │  │  │  │
 │  │  │  │  More Fragments Flag = 1 (还有后续)
 │  │  │  │
 │  │  │  Fragments Sequence = 1
 ```
 
-**第三帧**（最后一帧）：
+**最后一帧**（分片10，最后一帧）：
 ```
-AB CD 01 02 00 1A 53 78 56 34 12 05 00 [18 bytes conduction data...]
-│  │  │  │  │  │  │  └─────────┘  └─────┘  └─────────────────────┘
-│  │  │  │  │  │  │  Slave ID      Status   Conduction Data Part 3
-│  │  │  │  │  │  │
-│  │  │  │  │  │  Message ID (0x53)
-│  │  │  │  │  │
-│  │  │  │  │  Packet Length (26 bytes)
+AB CD 01 0A 00 3A 00 53 15 76 30 02 08 00 [52 bytes conduction data...]
+│  │  │  │  │  └────┘  │  └─────────┘  └─────┘  └─────────────────────┘
+│  │  │  │  │  Len=59  │  Slave ID     Status   Conduction Data Part 11
+│  │  │  │  │          │
+│  │  │  │  │          Message ID (0x53)
 │  │  │  │  │
 │  │  │  │  More Fragments Flag = 0 (最后一帧)
 │  │  │  │
-│  │  │  Fragments Sequence = 2
+│  │  │  Fragments Sequence = 10 (0x0A)
 ```
 
 **重要说明**：
-- 每个分片都包含完整的 Message ID + Slave ID + Device Status，这样即使在没有消息头部的情况下，接收端也能知道数据来自哪个从机
+- 每个分片都包含完整的 Message ID + Slave ID + Device Status（7字节），确保数据可追溯
 - 接收端需要将所有分片的导通数据部分拼接起来，得到完整的导通数据
+- 分片序列号必须连续，从0开始
+- 最后一个分片的 More Fragments Flag 必须为0
 
 ## 10. 字节序说明
 
@@ -404,7 +436,7 @@ AB CD 01 02 00 1A 53 78 56 34 12 05 00 [18 bytes conduction data...]
    - 添加帧分隔符（0xAB 0xCD）
    - 添加Packet ID（0x01）
    - 添加分片信息（序列号和标志）
-   - 添加载荷长度
+   - 添加载荷长度（2字节，小端序）
    - 添加载荷数据
 4. 分片处理：如果帧长度超过MTU（默认100字节），自动进行分片
 5. 发送：将帧数据通过通信链路发送
@@ -420,9 +452,11 @@ AB CD 01 02 00 1A 53 78 56 34 12 05 00 [18 bytes conduction data...]
 3. 构建帧：
    - 添加帧分隔符（0xAB 0xCD）
    - 添加Packet ID（0x01）
-   - 添加分片信息（序列号和标志）
-   - 添加载荷长度
+   - 添加分片序列号
+   - 添加更多分片标志
+   - 预留载荷长度字段（2字节）
    - 添加载荷数据
+   - 回填载荷长度字段
 4. 分片处理：如果帧长度超过MTU（默认100字节），进行特殊分片：
    - **每个分片都必须包含 Message ID + Slave ID + Device Status**
    - 每个分片包含部分导通数据
@@ -436,7 +470,7 @@ AB CD 01 02 00 1A 53 78 56 34 12 05 00 [18 bytes conduction data...]
 2. 帧识别：查找帧分隔符（0xAB 0xCD）
 3. 帧解析：
    - 验证帧头（分隔符、Packet ID）
-   - 读取载荷长度
+   - 读取载荷长度（2字节，小端序）
    - 提取载荷数据
 4. 分片重组：如果收到分片，等待所有分片到达后重组
 5. 载荷解析：
@@ -451,7 +485,7 @@ AB CD 01 02 00 1A 53 78 56 34 12 05 00 [18 bytes conduction data...]
 2. 帧识别：查找帧分隔符（0xAB 0xCD）
 3. 帧解析：
    - 验证帧头（分隔符、Packet ID）
-   - 读取载荷长度
+   - 读取载荷长度（2字节，小端序）
    - 提取载荷数据
 4. 分片重组：如果收到分片，进行特殊重组：
    - 从每个分片中提取 Message ID + Slave ID + Device Status（验证一致性）
@@ -487,32 +521,97 @@ AB CD 01 02 00 1A 53 78 56 34 12 05 00 [18 bytes conduction data...]
 - 最后一个分片的 More Fragments Flag 必须为0
 - 对于COND_DATA_MSG，每个分片的 Message ID + Slave ID + Device Status 必须一致
 
-## 13. 版本历史
+## 13. 实现要点
+
+### 13.1 帧头构建
+
+**重要**：帧头长度字段（位置5-6）必须在构建帧时预留，避免后续设置时覆盖载荷数据。
+
+正确的实现：
+```cpp
+packFrameBuffer_.push_back(FRAME_DELIMITER_1);  // 位置0
+packFrameBuffer_.push_back(FRAME_DELIMITER_2);  // 位置1
+packFrameBuffer_.push_back(packetId);           // 位置2
+packFrameBuffer_.push_back(fragmentSeq);        // 位置3
+packFrameBuffer_.push_back(moreFragmentsFlag);  // 位置4
+packFrameBuffer_.push_back(0);                  // 位置5 - 长度低字节（稍后设置）
+packFrameBuffer_.push_back(0);                  // 位置6 - 长度高字节（稍后设置）
+// 然后从位置7开始添加payload
+// ... 添加payload数据 ...
+// 最后回填长度字段
+uint16_t payloadLength = static_cast<uint16_t>(packFrameBuffer_.size() - 7);
+packFrameBuffer_[5] = payloadLength & 0xFF;
+packFrameBuffer_[6] = (payloadLength >> 8) & 0xFF;
+```
+
+### 13.2 COND_DATA_MSG 分片
+
+在分片COND_DATA_MSG时，必须确保每个分片都包含完整的识别信息：
+
+```cpp
+// 从原始载荷中提取识别信息
+uint8_t messageId = originalPayload[0];
+uint32_t slaveId = readUint32LE(originalPayload, 1);
+uint16_t deviceStatus = readUint16LE(originalPayload, 5);
+
+// 构建每个分片
+for (每个分片) {
+    // 添加7字节帧头（包括预留的长度字段）
+    // ...
+    
+    // 添加识别信息到分片载荷
+    packFrameBuffer_.push_back(messageId);
+    writeUint32LE(packFrameBuffer_, slaveId);
+    writeUint16LE(packFrameBuffer_, deviceStatus);
+    
+    // 添加分片的导通数据部分
+    packFrameBuffer_.insert(/* 当前分片的导通数据 */);
+    
+    // 回填长度字段
+    uint16_t payloadLength = static_cast<uint16_t>(packFrameBuffer_.size() - 7);
+    packFrameBuffer_[5] = payloadLength & 0xFF;
+    packFrameBuffer_[6] = (payloadLength >> 8) & 0xFF;
+}
+```
+
+## 14. 版本历史
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
 | 1.0 | 2024 | 初始版本，定义基本消息类型 |
-| 2.0 | 2024 | 新增COND_DATA_MSG消息类型，集成原Slave2Backend的导通数据功能 |
+| 2.0 | 2025-01 | 新增COND_DATA_MSG消息类型，集成原Slave2Backend的导通数据功能 |
+| 2.1 | 2025-01 | 修正帧头长度字段描述，明确7字节帧头结构；更新实现要点章节 |
 
-## 14. 附录
+## 15. 附录
 
-### 14.1 相关协议
+### 15.1 相关协议
 
 - **Master2Slave协议**: 主机到从机的通信协议
 - **Backend2Master协议**: 后台到主机的通信协议
 - **Master2Backend协议**: 主机到后台的通信协议
 
-### 14.2 从Slave2Backend迁移到Slave2Master
+### 15.2 从Slave2Backend迁移到Slave2Master
 
 原Slave2Backend协议中的导通数据消息已迁移到Slave2Master协议中，主要变化：
 
 1. **Packet ID**: 从 `0x04` (SLAVE_TO_BACKEND) 改为 `0x01` (SLAVE_TO_MASTER)
 2. **Message ID**: 从 `0x00` (CONDUCTION_DATA_MSG) 改为 `0x53` (COND_DATA_MSG)
-3. **载荷结构**: 
+3. **载荷结构**：
    - 原格式：`[Message ID][Slave ID][Device Status][Conduction Length][Conduction Data]`
    - 新格式：`[Message ID][Slave ID][Device Status][Conduction Data]`（**移除了长度字段**）
 4. **分片处理**: 新协议要求每个分片都包含 Message ID + Slave ID + Device Status
 
+### 15.3 常见问题
+
+**Q: 为什么帧头是7字节而不是其他长度？**
+A: 帧头包括：2字节分隔符 + 1字节Packet ID + 1字节分片序列号 + 1字节更多分片标志 + 2字节载荷长度 = 7字节
+
+**Q: 为什么COND_DATA_MSG每个分片都要包含识别信息？**
+A: 这样设计是为了在网络不稳定或分片乱序到达时，接收端仍然能够识别每个分片的来源，提高系统的鲁棒性。
+
+**Q: 导通数据的最大长度是多少？**
+A: 理论上受限于分片序列号的最大值（255），每个分片最多携带约93字节导通数据，因此最大约为 255 × 93 ≈ 23KB。实际使用中通常远小于此值。
+
 ---
 
-**文档维护**: 请根据协议变更及时更新本文档。
+**文档维护**: 本文档与源码保持同步更新。最后更新：2025-01

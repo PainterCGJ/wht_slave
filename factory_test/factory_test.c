@@ -43,6 +43,7 @@ static uint8_t entry_cmd_buffer[FACTORY_TEST_ENTRY_CMD_LEN];
 static uint8_t entry_cmd_index = 0;
 static uint32_t detection_start_time = 0;
 static bool entry_detection_active = false;
+static volatile bool entry_response_pending = false;  // 标志位：需要发送入口响应
 
 /* Ring buffer for interrupt-safe data transfer */
 #define RING_BUFFER_SIZE 256
@@ -217,7 +218,8 @@ bool factory_test_process_entry_byte(uint8_t data) {
     if ((osKernelGetTickCount() - detection_start_time) >
         FACTORY_TEST_DETECTION_TIMEOUT_MS) {
         entry_detection_active = false;
-        elog_i(TAG, "Factory test entry detection timeout");
+        // 注意：elog_i()不是中断安全的，移除中断中的日志调用
+        // elog_i(TAG, "Factory test entry detection timeout");
         return false;
     }
 
@@ -232,13 +234,15 @@ bool factory_test_process_entry_byte(uint8_t data) {
                    FACTORY_TEST_ENTRY_CMD_LEN) == 0) {
             entry_detection_active = false;
             test_state = FACTORY_TEST_ENABLED;    // 设置工厂测试状态
-            // elog_i(TAG, "Factory test entry command detected!");
-            // reply with "OK"
-            factory_test_frame_t response;
-            uint8_t status = 0x00;    // OK
-            factory_test_create_response_frame(&response, MSG_ID_ENTER_TEST,
-                                               &status, 1);
-            factory_test_send_response(&response);
+            // 注意：factory_test_send_response()会调用HAL_UART_Transmit()，不是中断安全的
+            // 改为设置标志位，让任务来处理响应
+            // factory_test_frame_t response;
+            // uint8_t status = 0x00;    // OK
+            // factory_test_create_response_frame(&response, MSG_ID_ENTER_TEST,
+            //                                   &status, 1);
+            // factory_test_send_response(&response);
+            // 设置标志位，让任务发送响应
+            factory_test_set_entry_response_flag();
             return true;
         } else {
             // Shift buffer left to continue detection
@@ -315,6 +319,31 @@ bool factory_test_is_enabled(void) {
 }
 
 /**
+ * @brief  设置入口响应标志位（中断安全）
+ * @retval None
+ */
+void factory_test_set_entry_response_flag(void) {
+    entry_response_pending = true;
+}
+
+/**
+ * @brief  检查并处理入口响应（在任务中调用）
+ * @retval None
+ */
+static void factory_test_process_entry_response(void) {
+    if (entry_response_pending) {
+        entry_response_pending = false;
+        // 发送"OK"响应
+        factory_test_frame_t response;
+        uint8_t status = 0x00;    // OK
+        factory_test_create_response_frame(&response, MSG_ID_ENTER_TEST,
+                                           &status, 1);
+        factory_test_send_response(&response);
+        elog_i(TAG, "Factory test entry command detected!");
+    }
+}
+
+/**
  * @brief  Store incoming data byte in ring buffer (called from interrupt)
  * @param  data: Received data byte
  * @retval None
@@ -333,6 +362,9 @@ void factory_test_process_data(uint8_t data) {
  * @retval None
  */
 void factory_test_task_process(void) {
+    // 检查并处理入口响应（在任务上下文中安全调用）
+    factory_test_process_entry_response();
+    
     if (test_state != FACTORY_TEST_ENABLED) {
         return;
     }

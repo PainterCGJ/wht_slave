@@ -39,7 +39,7 @@ extern "C" {
  * 默认值：7 (UART7/RS485)
  */
 #ifndef PRINTF_OUTPUT_UART
-#define PRINTF_OUTPUT_UART    1
+#define PRINTF_OUTPUT_UART    7
 #endif
 
 /**
@@ -53,7 +53,7 @@ extern "C" {
  * 默认值：7 (UART7/RS485)
  */
 #ifndef ELOG_OUTPUT_UART
-#define ELOG_OUTPUT_UART      1
+#define ELOG_OUTPUT_UART      7  
 #endif
 
 /* FreeRTOS Configuration ----------------------------------------------------*/
