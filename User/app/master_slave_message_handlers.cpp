@@ -76,6 +76,13 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
 
             elog_v("SyncMessageHandler", "Found config for device 0x%08X - TimeSlot: %d, TestCount: %d, Reset: %d",
                    device->m_deviceId, config.timeSlot, config.testCount, config.reset);
+            
+            // 添加详细的引脚数配置信息
+            elog_d("SyncMessageHandler", "=== Pin Configuration Debug Info ===");
+            elog_d("SyncMessageHandler", "Device ID: 0x%08X", device->m_deviceId);
+            elog_d("SyncMessageHandler", "TestCount (Pin Count): %d", config.testCount);
+            elog_d("SyncMessageHandler", "This device will have %d active slots for data transmission", config.testCount);
+            elog_d("SyncMessageHandler", "====================================");
             break;
         }
     }
@@ -166,16 +173,24 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
                 device->m_deviceState = SlaveDeviceState::DEV_ERR;
                 return nullptr;
             }
+            
+            // 计算预期的数据量
+            size_t expectedDataBits = totalCycles * device->currentConfig.testCount;
+            size_t expectedDataBytes = (expectedDataBits + 7) / 8;
+            
             if (configChanged)
             {
-                elog_v("SyncMessageHandler", "Continuity collector reconfigured - TestCount: %d, TotalCycles: %d",
+                elog_d("SyncMessageHandler", "Continuity collector reconfigured - TestCount: %d, TotalCycles: %d",
                        device->currentConfig.testCount, totalCycles);
             }
             else
             {
-                elog_v("SyncMessageHandler", "Continuity collector configured - TestCount: %d, TotalCycles: %d",
+                elog_d("SyncMessageHandler", "Continuity collector configured - TestCount: %d, TotalCycles: %d",
                        device->currentConfig.testCount, totalCycles);
             }
+            
+            elog_d("SyncMessageHandler", "Expected data size: %d bits = %d bytes", expectedDataBits, expectedDataBytes);
+            elog_d("SyncMessageHandler", "With MTU=800, expected fragments: ~%d", (expectedDataBytes + 799) / 800);
         }
 
         // 10.2 配置时隙管理器（先停止再配置）
@@ -208,20 +223,25 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
             }
             if (configChanged)
             {
-                elog_v("SyncMessageHandler",
+                elog_d("SyncMessageHandler",
                        "Slot manager reconfigured (single cycle) - StartSlot: %d, TotalSlots: %d, Interval: %d ms",
                        startSlot, totalSlotCount, slotIntervalMs);
             }
             else
             {
-                elog_v("SyncMessageHandler",
+                elog_d("SyncMessageHandler",
                        "Slot manager configured (single cycle) - StartSlot: %d, TotalSlots: %d, Interval: %d ms",
                        startSlot, totalSlotCount, slotIntervalMs);
             }
 
             // 打印详细的时隙信息
+            elog_d("SyncMessageHandler", "=== Slot Manager Configuration ===");
             elog_d("SyncMessageHandler", "StartSlot: %d (0x%04X)", startSlot, startSlot);
+            elog_d("SyncMessageHandler", "DeviceSlotCount (Active Slots): %d", deviceSlotCount);
+            elog_d("SyncMessageHandler", "TotalSlotCount: %d", totalSlotCount);
             elog_d("SyncMessageHandler", "SlotInterval: %d ms", slotIntervalMs);
+            elog_d("SyncMessageHandler", "Active Pin Range: 0 to %d", deviceSlotCount - 1);
+            elog_d("SyncMessageHandler", "==================================");
         }
     }
 

@@ -5,22 +5,8 @@
 #include <stdint.h>
 
 #define FRAME_LEN_MAX 1016
-typedef enum
-{
-    UWB_MSG_TYPE_SEND_DATA = 1, // 应用任务发送数据
-    UWB_MSG_TYPE_CONFIG,        // 配置信息
-    UWB_MSG_TYPE_SET_MODE       // 设置工作模式
-} UwbMsgType;
 
-typedef struct
-{
-    UwbMsgType type;
-    uint16_t dataLen;
-    uint8_t data[FRAME_LEN_MAX];
-    uint32_t delay_ms; // 发送延迟时间
-} UwbTxMsg;
-
-// UWB接收消息结构体
+// UWB接收消息结构体（保留用于兼容性）
 typedef struct
 {
     uint16_t dataLen;
@@ -40,25 +26,31 @@ class MasterComm
 
     int SendData(const uint8_t *data, uint16_t len, uint32_t delayMs);
     int ReceiveData(uwbRxMsg *msg, uint32_t timeoutMs);
-    int Reconfigure();
     void SetRxCallback(UwbRxCallback callback);
 
   private:
     int Initialize(void);
-    int GetTxQueueCount();
-    int GetRxQueueCount();
-    void ClearTxQueue();
-    void ClearRxQueue();
 
     // 任务相关私有方法
     void UwbCommTask();
     static void UwbCommTaskWrapper(void *argument);
 
-    // 私有成员变量
-    osMessageQueueId_t uwbTxQueue; // UWB发送队列
-    osMessageQueueId_t uwbRxQueue; // UWB接收队列
+    // 私有成员变量 - 使用全局buffer代替队列
     osThreadId_t uwbCommTaskHandle;
-    osSemaphoreId_t uwbTxSemaphore; // UWB发送信号量
+    osMutexId_t uwbTxMutex;         // 发送buffer互斥锁
+    osMutexId_t uwbRxMutex;         // 接收buffer互斥锁
+    osSemaphoreId_t uwbTxSemaphore; // 发送数据信号量（通知有数据）
+    osSemaphoreId_t uwbRxSemaphore; // 接收数据信号量（通知有数据）
     UwbRxCallback uwbRxCallback;    // 接收数据回调函数指针
+
+    // 全局buffer（避免队列拷贝）
+    uint8_t txBuffer[FRAME_LEN_MAX];
+    uint16_t txBufferLen;
+    uint8_t rxBuffer[FRAME_LEN_MAX];
+    uint16_t rxBufferLen;
+    uint32_t rxTimestamp;
+    
+    // 统计信息（用于日志输出）
+    uint32_t txCount;  // 已发送包计数
 };
 #endif /* UWB_TASK_H */

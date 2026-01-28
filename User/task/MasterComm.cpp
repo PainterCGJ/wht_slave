@@ -34,7 +34,6 @@ void MasterComm::UwbCommTask()
     static auto TAG = "uwb_comm";
 
     // 将大对象从栈改为堆分配，减少栈空间占用
-    auto txMsg = std::make_unique<UwbTxMsg>();
     auto rxMsg = std::make_unique<uwbRxMsg>();
     auto uwb = std::make_unique<CX310<CX310_SlaveSpiAdapter>>();
     osDelay(100);
@@ -42,6 +41,8 @@ void MasterComm::UwbCommTask()
     g_uwbAdapter = &uwb->get_interface();
 
     std::vector<uint8_t> buffer = {0};
+    std::vector<uint8_t> tx_data; // 用于临时存储发送数据
+    tx_data.reserve(FRAME_LEN_MAX);
 
     elog_i(TAG, "UWB task started, initializing UWB...");
     if (uwb->init())
@@ -111,14 +112,20 @@ void MasterComm::UwbCommTask()
 
     for (;;)
     {
-        // 等待发送信号量，确保队列中有完整的数据
+        // 等待发送信号量，有数据需要发送时被唤醒
         if (osSemaphoreAcquire(uwbTxSemaphore, 0) == osOK)
         {
-            // 从队列获取发送消息
-            if (osMessageQueueGet(uwbTxQueue, txMsg.get(), nullptr, 0) == osOK)
+            // 获取互斥锁，从全局buffer读取数据
+            if (osMutexAcquire(uwbTxMutex, 10) == osOK)
             {
-                std::vector<uint8_t> tx_data(txMsg->data, txMsg->data + txMsg->dataLen);
-                elog_i(TAG, "tx begin");
+                // 直接从全局buffer读取，避免拷贝
+                tx_data.assign(txBuffer, txBuffer + txBufferLen);
+                uint32_t currentTxCount = ++txCount;  // 增加发送计数
+                
+                osMutexRelease(uwbTxMutex);
+                
+                // 只输出关键信息：发送第几包
+                elog_i(TAG, "tx #%lu", currentTxCount);
                 uwb->update();
                 uwb->data_transmit(tx_data);
             }
@@ -177,58 +184,53 @@ void MasterComm::UwbCommTask()
         if (uwb->get_recv_data(buffer))
         {
             size_t bufferSize = buffer.size();
-            size_t offset = 0;
             uint32_t timestamp = osKernelGetTickCount();
 
-            // 如果数据大小超过单帧容量，分批次处理
-            while (offset < bufferSize)
-            {
-                // 计算本次提取的数据长度
-                size_t chunkSize = (bufferSize - offset > FRAME_LEN_MAX) ? FRAME_LEN_MAX : (bufferSize - offset);
+            // 只处理第一帧数据（通常就一帧）
+            size_t dataSize = (bufferSize > FRAME_LEN_MAX) ? FRAME_LEN_MAX : bufferSize;
 
-                // 复制数据到消息结构
-                rxMsg->dataLen = chunkSize;
-                memcpy(rxMsg->data, buffer.data() + offset, chunkSize);
+            // 获取互斥锁，写入全局RX buffer
+            if (osMutexAcquire(uwbRxMutex, 10) == osOK)
+            {
+                memcpy(rxBuffer, buffer.data(), dataSize);
+                rxBufferLen = dataSize;
+                rxTimestamp = timestamp;
+                
+                osMutexRelease(uwbRxMutex);
+                
+                // 释放信号量，通知有接收数据
+                osSemaphoreRelease(uwbRxSemaphore);
+            }
+
+            // 如果有回调函数，准备rxMsg并调用
+            if (uwbRxCallback != nullptr)
+            {
+                rxMsg->dataLen = dataSize;
+                memcpy(rxMsg->data, buffer.data(), dataSize);
                 rxMsg->timestamp = timestamp;
                 rxMsg->statusReg = 0;
-
-                // 入队到UWB接收队列（用于SlaveDataProcT任务）
-                if (osMessageQueuePut(uwbRxQueue, rxMsg.get(), 0, 0) != osOK)
-                {
-                    elog_e(TAG, "Failed to put UWB RX data to queue (queue full or error)");
-                    break; // 队列满时停止处理剩余数据
-                }
-
-                // 如果有回调函数，调用它
-                if (uwbRxCallback != nullptr)
-                {
-                    uwbRxCallback(rxMsg.get());
-                }
+                uwbRxCallback(rxMsg.get());
+            }
 
 #if ENABLE_OTA_TASK
-                // 如果不在导通检测状态，将数据入队到UWB->LTLP队列
-                if (!uwb_ltlp_is_conducting())
+            // 如果不在导通检测状态，将数据入队到UWB->LTLP队列
+            if (!uwb_ltlp_is_conducting())
+            {
+                osMessageQueueId_t uwb_to_ltlp_queue = uwb_ltlp_get_uwb_to_ltlp_queue();
+                if (uwb_to_ltlp_queue != NULL)
                 {
-                    osMessageQueueId_t uwb_to_ltlp_queue = uwb_ltlp_get_uwb_to_ltlp_queue();
-                    if (uwb_to_ltlp_queue != NULL)
+                    // 将接收到的数据逐字节入队
+                    for (size_t i = 0; i < dataSize; i++)
                     {
-                        // 将接收到的数据逐字节入队
-                        for (size_t i = 0; i < chunkSize; i++)
+                        uint8_t byte = buffer[i];
+                        if (osMessageQueuePut(uwb_to_ltlp_queue, &byte, 0, 0) != osOK)
                         {
-                            uint8_t byte = rxMsg->data[i];
-                            if (osMessageQueuePut(uwb_to_ltlp_queue, &byte, 0, 0) != osOK)
-                            {
-                                // 队列满时记录警告，但不中断处理
-                                elog_w(TAG, "UWB->LTLP queue full, dropping byte");
-                                break;
-                            }
+                            break;
                         }
                     }
                 }
-#endif
-
-                offset += chunkSize;
             }
+#endif
         }
 
         uwb->update();
@@ -237,41 +239,63 @@ void MasterComm::UwbCommTask()
 }
 
 MasterComm::MasterComm()
-    : uwbTxQueue(nullptr), uwbRxQueue(nullptr), uwbCommTaskHandle(nullptr), uwbTxSemaphore(nullptr),
-      uwbRxCallback(nullptr)
+    : uwbCommTaskHandle(nullptr), uwbTxMutex(nullptr), uwbRxMutex(nullptr), uwbTxSemaphore(nullptr),
+      uwbRxSemaphore(nullptr), uwbRxCallback(nullptr), txBufferLen(0), rxBufferLen(0), rxTimestamp(0), txCount(0)
 {
     Initialize();
 }
 MasterComm::~MasterComm()
 {
-    ClearTxQueue();
-    ClearRxQueue();
+    // 清理资源
+    if (uwbTxMutex != nullptr)
+    {
+        osMutexDelete(uwbTxMutex);
+    }
+    if (uwbRxMutex != nullptr)
+    {
+        osMutexDelete(uwbRxMutex);
+    }
+    if (uwbTxSemaphore != nullptr)
+    {
+        osSemaphoreDelete(uwbTxSemaphore);
+    }
+    if (uwbRxSemaphore != nullptr)
+    {
+        osSemaphoreDelete(uwbRxSemaphore);
+    }
 }
 
 int MasterComm::Initialize(void)
 {
     static const char *TAG = "uwb_init";
 
-    // 创建消息队列
-    uwbTxQueue = osMessageQueueNew(TX_QUEUE_SIZE, sizeof(UwbTxMsg), nullptr);
-    if (uwbTxQueue == nullptr)
+    // 创建互斥锁保护全局buffer
+    uwbTxMutex = osMutexNew(nullptr);
+    if (uwbTxMutex == nullptr)
     {
-        elog_e(TAG, "Failed to create UWB TX queue");
+        elog_e(TAG, "Failed to create UWB TX mutex");
         return -1;
     }
 
-    uwbRxQueue = osMessageQueueNew(RX_QUEUE_SIZE, sizeof(uwbRxMsg), nullptr);
-    if (uwbRxQueue == nullptr)
+    uwbRxMutex = osMutexNew(nullptr);
+    if (uwbRxMutex == nullptr)
     {
-        elog_e(TAG, "Failed to create UWB RX queue");
+        elog_e(TAG, "Failed to create UWB RX mutex");
         return -1;
     }
 
-    // 创建发送信号量（计数信号量，初始值为0）
-    uwbTxSemaphore = osSemaphoreNew(TX_QUEUE_SIZE, 0, nullptr);
+    // 创建信号量（二值信号量，初始值为0）
+    uwbTxSemaphore = osSemaphoreNew(1, 0, nullptr);
     if (uwbTxSemaphore == nullptr)
     {
         elog_e(TAG, "Failed to create UWB TX semaphore");
+        return -1;
+    }
+
+    uwbRxSemaphore = osSemaphoreNew(1, 0, nullptr);
+    if (uwbRxSemaphore == nullptr)
+    {
+        elog_e(TAG, "Failed to create UWB RX semaphore");
         return -1;
     }
 
@@ -300,24 +324,19 @@ int MasterComm::SendData(const uint8_t *data, uint16_t len, uint32_t delayMs)
         return -1;
     }
 
-    UwbTxMsg msg;
-    msg.type = UWB_MSG_TYPE_SEND_DATA;
-    msg.dataLen = len;
-    msg.delay_ms = delayMs;
-
-    // 复制数据到消息结构体
-    for (uint16_t i = 0; i < len; i++)
+    // 获取互斥锁，直接写入全局buffer（避免队列拷贝）
+    if (osMutexAcquire(uwbTxMutex, 100) != osOK)
     {
-        msg.data[i] = data[i];
+        return -2; // 获取互斥锁超时
     }
 
-    // 发送到队列
-    if (osMessageQueuePut(uwbTxQueue, &msg, 0, 100) != osOK)
-    {
-        return -3; // 队列满或超时
-    }
+    // 直接拷贝到全局buffer（只拷贝一次，不需要队列）
+    memcpy(txBuffer, data, len);
+    txBufferLen = len;
 
-    // 队列数据放入成功后，释放信号量通知通信任务
+    osMutexRelease(uwbTxMutex);
+
+    // 释放信号量通知UWB任务有数据需要发送
     osSemaphoreRelease(uwbTxSemaphore);
 
     return 0;
@@ -330,62 +349,32 @@ int MasterComm::ReceiveData(uwbRxMsg *msg, uint32_t timeoutMs)
         return -1;
     }
 
-    if (osMessageQueueGet(uwbRxQueue, msg, nullptr, timeoutMs) == osOK)
+    // 等待接收信号量
+    if (osSemaphoreAcquire(uwbRxSemaphore, timeoutMs) != osOK)
     {
-        return 0; // 成功
+        return -1; // 超时或错误
     }
 
-    return -1; // 超时或错误
+    // 获取互斥锁，从全局buffer读取数据
+    if (osMutexAcquire(uwbRxMutex, 10) != osOK)
+    {
+        return -1;
+    }
+
+    // 从全局buffer读取数据
+    msg->dataLen = rxBufferLen;
+    memcpy(msg->data, rxBuffer, rxBufferLen);
+    msg->timestamp = rxTimestamp;
+    msg->statusReg = 0;
+
+    osMutexRelease(uwbRxMutex);
+
+    return 0; // 成功
 }
 
 void MasterComm::SetRxCallback(UwbRxCallback callback)
 {
     this->uwbRxCallback = callback;
-}
-
-int MasterComm::GetTxQueueCount()
-{
-    return (int)osMessageQueueGetCount(uwbTxQueue);
-}
-
-int MasterComm::GetRxQueueCount()
-{
-    return (int)osMessageQueueGetCount(uwbRxQueue);
-}
-
-void MasterComm::ClearTxQueue()
-{
-    UwbTxMsg msg;
-    while (osMessageQueueGet(uwbTxQueue, &msg, nullptr, 0) == osOK)
-    {
-        // 清空队列
-    }
-}
-
-void MasterComm::ClearRxQueue()
-{
-    uwbRxMsg msg;
-    while (osMessageQueueGet(uwbRxQueue, &msg, nullptr, 0) == osOK)
-    {
-        // 清空队列
-    }
-}
-
-int MasterComm::Reconfigure()
-{
-    UwbTxMsg msg;
-    msg.type = UWB_MSG_TYPE_CONFIG;
-    msg.dataLen = 0;
-
-    if (osMessageQueuePut(uwbTxQueue, &msg, 0, 100) != osOK)
-    {
-        return -1; // 队列满或超时
-    }
-
-    // 配置消息放入队列后，释放信号量通知通信任务
-    osSemaphoreRelease(uwbTxSemaphore);
-
-    return 0; // 成功
 }
 
 // static uint8_t rx_buffer[FRAME_LEN_MAX];
