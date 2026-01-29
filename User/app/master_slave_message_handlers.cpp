@@ -76,12 +76,21 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
 
             elog_v("SyncMessageHandler", "Found config for device 0x%08X - TimeSlot: %d, TestCount: %d, Reset: %d",
                    device->m_deviceId, config.timeSlot, config.testCount, config.reset);
-            
+
+            // 计算所有从机的总引脚数
+            uint16_t totalPinCount = 0;
+            for (const auto &cfg : syncMsg->slaveConfigs)
+            {
+                totalPinCount += cfg.testCount;
+            }
+
             // 添加详细的引脚数配置信息
             elog_d("SyncMessageHandler", "=== Pin Configuration Debug Info ===");
             elog_d("SyncMessageHandler", "Device ID: 0x%08X", device->m_deviceId);
-            elog_d("SyncMessageHandler", "TestCount (Pin Count): %d", config.testCount);
-            elog_d("SyncMessageHandler", "This device will have %d active slots for data transmission", config.testCount);
+            elog_d("SyncMessageHandler", "TestCount (This Device): %d", config.testCount);
+            elog_d("SyncMessageHandler", "Total Pin Count (All Devices): %d", totalPinCount);
+            elog_d("SyncMessageHandler", "This device will have %d active slots for data transmission",
+                   config.testCount);
             elog_d("SyncMessageHandler", "====================================");
             break;
         }
@@ -94,22 +103,37 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
         return nullptr;
     }
 
-    // 5. 比较配置是否改变（比较所有配置项）
-    bool configChanged = false;
-    if (oldConfig.mode != newMode || oldConfig.interval != syncMsg->interval || oldConfig.timeSlot != newTimeSlot ||
-        oldConfig.testCount != newTestCount)
+    // 5. 计算新的totalCycles（所有从机的testCount之和）
+    uint16_t newTotalCycles = 0;
+    for (const auto &cfg : syncMsg->slaveConfigs)
     {
-        configChanged = true;
-        elog_v("SyncMessageHandler",
-               "Configuration changed - Mode: %d->%d, Interval: %d->%d, TimeSlot: %d->%d, TestCount: %d->%d",
-               static_cast<int>(oldConfig.mode), static_cast<int>(newMode), oldConfig.interval, syncMsg->interval,
-               oldConfig.timeSlot, newTimeSlot, oldConfig.testCount, newTestCount);
+        newTotalCycles += cfg.testCount;
     }
 
-    // 6. 如果配置改变，清除之前的分片发送状态和缓存数据
+    // 计算旧的totalCycles（如果已配置）
+    uint16_t oldTotalCycles = 0;
+    if (device->m_isConfigured && device->m_slotManager)
+    {
+        oldTotalCycles = device->m_slotManager->GetTotalSlots();
+    }
+
+    // 6. 比较配置是否改变（比较所有配置项，包括totalCycles）
+    bool configChanged = false;
+    if (oldConfig.mode != newMode || oldConfig.interval != syncMsg->interval || oldConfig.timeSlot != newTimeSlot ||
+        oldConfig.testCount != newTestCount || oldTotalCycles != newTotalCycles)
+    {
+        configChanged = true;
+        elog_d("SyncMessageHandler",
+               "Configuration changed - Mode: %d->%d, Interval: %d->%d, TimeSlot: %d->%d, TestCount: %d->%d, "
+               "TotalCycles: %d->%d",
+               static_cast<int>(oldConfig.mode), static_cast<int>(newMode), oldConfig.interval, syncMsg->interval,
+               oldConfig.timeSlot, newTimeSlot, oldConfig.testCount, newTestCount, oldTotalCycles, newTotalCycles);
+    }
+
+    // 7. 如果配置改变，清除之前的分片发送状态和缓存数据
     if (configChanged)
     {
-        elog_v("SyncMessageHandler", "Clearing cached data and fragment sending state due to config change");
+        elog_d("SyncMessageHandler", "Config changed, clearing cached data and fragment state");
 
         // 清除分片发送状态（重新计算分包数量和发送分包所需要的时隙）
         device->m_isFragmentSendingInProgress = false;
@@ -119,16 +143,18 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
         // 清除缓存的采集数据
         device->lastCollectionData.clear();
         device->m_hasDataToSend = false;
+
+        elog_d("SyncMessageHandler", "Cached data cleared, next transmission will use new data size");
     }
 
-    // 7. 更新配置（无论是否改变都更新）
+    // 8. 更新配置（无论是否改变都更新）
     device->currentConfig.mode = newMode;
     device->currentConfig.interval = syncMsg->interval;
     device->currentConfig.timeSlot = newTimeSlot;
     device->currentConfig.testCount = newTestCount;
     device->m_isConfigured = true;
 
-    // 8. 处理复位请求
+    // 9. 处理复位请求
     if (resetRequested)
     {
         elog_v("SyncMessageHandler", "Reset requested for device 0x%08X", device->m_deviceId);
@@ -156,41 +182,34 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
     // 但如果之前已经配置过且配置未改变，则不需要重新配置
     if (configChanged || !wasConfigured)
     {
-        // 10.1 配置采集器
-        // totalCycles = sum of salve's testCount
-        uint16_t totalCycles = 0;
-        for (const auto &config : syncMsg->slaveConfigs)
-        {
-            totalCycles += config.testCount;
-        }
-
+        // 10.1 配置采集器（使用前面计算的newTotalCycles）
         if (device->m_continuityCollector)
         {
-            CollectorConfig collectorConfig(device->currentConfig.testCount, totalCycles);
+            CollectorConfig collectorConfig(device->currentConfig.testCount, newTotalCycles);
             if (!device->m_continuityCollector->Configure(collectorConfig))
             {
                 elog_e("SyncMessageHandler", "Failed to configure continuity collector");
                 device->m_deviceState = SlaveDeviceState::DEV_ERR;
                 return nullptr;
             }
-            
+
             // 计算预期的数据量
-            size_t expectedDataBits = totalCycles * device->currentConfig.testCount;
+            size_t expectedDataBits = newTotalCycles * device->currentConfig.testCount;
             size_t expectedDataBytes = (expectedDataBits + 7) / 8;
-            
+
             if (configChanged)
             {
-                elog_d("SyncMessageHandler", "Continuity collector reconfigured - TestCount: %d, TotalCycles: %d",
-                       device->currentConfig.testCount, totalCycles);
+                elog_d("SyncMessageHandler", "Collector reconfigured - TestCount: %d, TotalCycles: %d",
+                       device->currentConfig.testCount, newTotalCycles);
             }
             else
             {
-                elog_d("SyncMessageHandler", "Continuity collector configured - TestCount: %d, TotalCycles: %d",
-                       device->currentConfig.testCount, totalCycles);
+                elog_d("SyncMessageHandler", "Collector configured - TestCount: %d, TotalCycles: %d",
+                       device->currentConfig.testCount, newTotalCycles);
             }
-            
-            elog_d("SyncMessageHandler", "Expected data size: %d bits = %d bytes", expectedDataBits, expectedDataBytes);
-            elog_d("SyncMessageHandler", "With MTU=800, expected fragments: ~%d", (expectedDataBytes + 799) / 800);
+
+            elog_d("SyncMessageHandler", "Expected data: %d bytes (%d bits), ~%d frags", expectedDataBytes,
+                   expectedDataBits, (expectedDataBytes + 799) / 800);
         }
 
         // 10.2 配置时隙管理器（先停止再配置）
@@ -211,7 +230,7 @@ std::unique_ptr<Message> SyncMessageHandler::ProcessMessage(const Message &messa
             }
 
             uint8_t deviceSlotCount = device->currentConfig.testCount; // 每个设备占用一个时隙
-            uint16_t totalSlotCount = totalCycles;                     // 总时隙数等于从机数量
+            uint16_t totalSlotCount = newTotalCycles;                  // 总时隙数等于从机数量
             uint32_t slotIntervalMs = device->currentConfig.interval;
 
             // 使用单周期模式配置SlotManager

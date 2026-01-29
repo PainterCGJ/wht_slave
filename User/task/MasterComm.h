@@ -49,8 +49,8 @@ class MasterComm
     uint8_t rxBuffer[FRAME_LEN_MAX];
     uint16_t rxBufferLen;
     uint32_t rxTimestamp;
-    
+
     // 统计信息（用于日志输出）
-    uint32_t txCount;  // 已发送包计数
+    uint32_t txCount; // 已发送包计数
 };
 #endif /* UWB_TASK_H */

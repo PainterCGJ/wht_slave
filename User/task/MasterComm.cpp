@@ -120,10 +120,10 @@ void MasterComm::UwbCommTask()
             {
                 // 直接从全局buffer读取，避免拷贝
                 tx_data.assign(txBuffer, txBuffer + txBufferLen);
-                uint32_t currentTxCount = ++txCount;  // 增加发送计数
-                
+                uint32_t currentTxCount = ++txCount; // 增加发送计数
+
                 osMutexRelease(uwbTxMutex);
-                
+
                 // 只输出关键信息：发送第几包
                 elog_i(TAG, "tx #%lu", currentTxCount);
                 uwb->update();
@@ -195,9 +195,9 @@ void MasterComm::UwbCommTask()
                 memcpy(rxBuffer, buffer.data(), dataSize);
                 rxBufferLen = dataSize;
                 rxTimestamp = timestamp;
-                
+
                 osMutexRelease(uwbRxMutex);
-                
+
                 // 释放信号量，通知有接收数据
                 osSemaphoreRelease(uwbRxSemaphore);
             }
