@@ -153,6 +153,34 @@ void ContinuityCollector::SetAllPinsToInputMode()
     elog_v(TAG, "All pins set to input mode");
 }
 
+void ContinuityCollector::InitializeAllTestPins()
+{
+    elog_v(TAG, "Initializing all test pins as output PP high (before sync frame)");
+
+    // 初始化所有64个待测引脚为推挽输出高电平
+    for (uint8_t logicalPin = 0; logicalPin < 64; logicalPin++)
+    {
+        GpioPin gpioPin(HARDWARE_PIN_MAP[logicalPin].m_port, HARDWARE_PIN_MAP[logicalPin].m_pin);
+
+        // 使能对应端口的时钟
+        enableGpioPortClock(gpioPin.m_port);
+
+        GPIO_InitTypeDef GPIO_InitStruct = {0};
+        GPIO_InitStruct.Pin = gpioPin.m_pin;
+        GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+        GPIO_InitStruct.Pull = GPIO_NOPULL;
+        GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+
+        // 先设置引脚状态为高电平
+        HAL_GPIO_WritePin(gpioPin.m_port, gpioPin.m_pin, GPIO_PIN_SET);
+
+        // 初始化GPIO
+        HAL_GPIO_Init(gpioPin.m_port, &GPIO_InitStruct);
+    }
+
+    elog_v(TAG, "All 64 test pins initialized as output PP high");
+}
+
 // uint32_t ContinuityCollector::getCurrentTimeMs() {
 //     return hal_hptimer_get_ms();
 // }
@@ -410,14 +438,15 @@ void ContinuityCollector::InitializeGpioPins()
 
     elog_v(TAG, "initializeGpioPins: config_.num: %d", m_config.m_num);
 
-    // 初始化所有需要的GPIO引脚为输入模式
+    // 初始化所有需要的GPIO引脚为推挽输出高电平（特殊测试模式）
     for (uint8_t logicalPin = 0; logicalPin < m_config.m_num; logicalPin++)
     {
         elog_v(TAG, "logicalPin: %d", logicalPin);
         GpioPin gpioPin = m_config.GetGpioPin(logicalPin);
         elog_v(TAG, "GPIO port: %p, pin: 0x%04x", gpioPin.m_port, gpioPin.m_pin);
-        HalGpioInit(gpioPin, GPIO_MODE_INPUT, GPIO_PULLDOWN);
-        elog_v(TAG, "GPIO initialized");
+        HalGpioInit(gpioPin, GPIO_MODE_OUTPUT_PP, GPIO_NOPULL, GPIO_PIN_SET);
+        HalGpioWrite(gpioPin, GPIO_PIN_SET);
+        elog_v(TAG, "GPIO initialized as output PP high");
     }
 }
 

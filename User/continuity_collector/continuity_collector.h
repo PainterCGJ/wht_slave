@@ -208,6 +208,9 @@ class ContinuityCollector
     // 将所有引脚设置为输入模式（用于周期结束时）
     void SetAllPinsToInputMode();
 
+    // 初始化所有待测引脚为推挽输出高电平（用于系统启动时，在接收到同步帧之前）
+    static void InitializeAllTestPins();
+
     // 处理时隙事件（由外部时隙管理器调用）
     void ProcessSlot(uint16_t slotNumber, uint8_t activePin, bool isActive);
 

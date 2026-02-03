@@ -52,6 +52,9 @@ SlaveDevice::SlaveDevice()
     // Initialize continuity collector
     m_continuityCollector = ContinuityCollectorFactory::Create();
 
+    // 在接收到同步帧之前，初始化所有待测引脚为推挽输出高电平
+    ContinuityCollector::InitializeAllTestPins();
+
     // Initialize slot manager
     m_slotManager = std::make_unique<SlotManager>();
 
