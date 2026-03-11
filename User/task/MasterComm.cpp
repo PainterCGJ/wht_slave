@@ -57,27 +57,27 @@ void MasterComm::UwbCommTask()
     uwb->set_recv_mode();
     elog_i(TAG, "UWB set to receive mode");
     // 读取uwb配置
-    uint8_t channel;
-    uwb->get_channel(channel);
-    elog_i(TAG, "UWB channel: %d", channel);
-    uint8_t prf_mode;
-    uwb->get_prf_mode(prf_mode);
-    elog_i(TAG, "UWB prf mode: %d", prf_mode);
-    uint8_t sfd_id;
-    uwb->get_sfd_id(sfd_id);
-    elog_i(TAG, "UWB sfd id: %d", sfd_id);
-    uint8_t preamble_length;
-    uwb->get_preamble_length(preamble_length);
-    elog_i(TAG, "UWB preamble length: %d", preamble_length);
-    uint8_t preamble_index;
-    uwb->get_preamble_index(preamble_index);
-    elog_i(TAG, "UWB preamble index: %d", preamble_index);
-    uint8_t psdu_data_rate;
-    uwb->get_psdu_data_rate(psdu_data_rate);
-    elog_i(TAG, "UWB psdu data rate: %d", psdu_data_rate);
-    uint8_t phr_mode;
-    uwb->get_phr_mode(phr_mode);
-    elog_i(TAG, "UWB phr mode: %d", phr_mode);
+    // uint8_t channel;
+    // uwb->get_channel(channel);
+    // elog_i(TAG, "UWB channel: %d", channel);
+    // uint8_t prf_mode;
+    // uwb->get_prf_mode(prf_mode);
+    // elog_i(TAG, "UWB prf mode: %d", prf_mode);
+    // uint8_t sfd_id;
+    // uwb->get_sfd_id(sfd_id);
+    // elog_i(TAG, "UWB sfd id: %d", sfd_id);
+    // uint8_t preamble_length;
+    // uwb->get_preamble_length(preamble_length);
+    // elog_i(TAG, "UWB preamble length: %d", preamble_length);
+    // uint8_t preamble_index;
+    // uwb->get_preamble_index(preamble_index);
+    // elog_i(TAG, "UWB preamble index: %d", preamble_index);
+    // uint8_t psdu_data_rate;
+    // uwb->get_psdu_data_rate(psdu_data_rate);
+    // elog_i(TAG, "UWB psdu data rate: %d", psdu_data_rate);
+    // uint8_t phr_mode;
+    // uwb->get_phr_mode(phr_mode);
+    // elog_i(TAG, "UWB phr mode: %d", phr_mode);
 
     // if DIP1 reset, set uwb channel to 6
     // else if DIP2 reset, set uwb channel to 7
@@ -87,22 +87,27 @@ void MasterComm::UwbCommTask()
     // else set uwb channel to 5
     if (HAL_GPIO_ReadPin(DIP1_GPIO_Port, DIP1_Pin) == GPIO_PIN_RESET)
     {
+        elog_i(TAG, "DP1 reset, set channel to 6");
         uwb->set_channel(6);
     }
     else if (HAL_GPIO_ReadPin(DIP2_GPIO_Port, DIP2_Pin) == GPIO_PIN_RESET)
     {
+        elog_i(TAG, "DP2 reset, set channel to 7");
         uwb->set_channel(7);
     }
     else if (HAL_GPIO_ReadPin(DIP3_GPIO_Port, DIP3_Pin) == GPIO_PIN_RESET)
     {
+        elog_i(TAG, "DP3 reset, set channel to 8");
         uwb->set_channel(8);
     }
     else if (HAL_GPIO_ReadPin(DIP4_GPIO_Port, DIP4_Pin) == GPIO_PIN_RESET)
     {
+        elog_i(TAG, "DP4 reset, set channel to 9");
         uwb->set_channel(9);
     }
     else if (HAL_GPIO_ReadPin(DIP5_GPIO_Port, DIP5_Pin) == GPIO_PIN_RESET)
     {
+        elog_i(TAG, "DP5 reset, set channel to 10");
         uwb->set_channel(10);
     }
     else
